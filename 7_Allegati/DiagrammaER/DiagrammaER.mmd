@@ -1,0 +1,433 @@
+erDiagram
+    users ||--o{ class_user : student
+    classes ||--o{ class_user : school_class
+    users ||--o{ class_teacher : teacher
+    classes ||--o{ class_teacher : school_class
+
+    users ||--o{ guardian_student : student
+    guardians ||--o{ guardian_student : guardian
+
+    users ||--o{ absences : student
+    users ||--o{ absences : hours_decider
+    users ||--o{ absences : deadline_extender
+    leaves ||--o{ absences : derived_from
+    absences ||--o{ medical_certificates : certificates
+    users ||--o{ medical_certificates : validator
+    absences ||--o{ guardian_absence_confirmations : confirmations
+    guardians ||--o{ guardian_absence_confirmations : signer
+    absences ||--o{ absence_confirmation_tokens : tokens
+    guardians ||--o{ absence_confirmation_tokens : receiver
+    absences ||--o{ absence_email_notifications : emails
+
+    users ||--o{ delays : student
+    users ||--o{ delays : recorder
+    users ||--o{ delays : validator
+    absences ||--o{ delays : converted_absence
+    delays ||--o{ guardian_delay_confirmations : confirmations
+    guardians ||--o{ guardian_delay_confirmations : signer
+    delays ||--o{ delay_confirmation_tokens : tokens
+    guardians ||--o{ delay_confirmation_tokens : receiver
+    delays ||--o{ delay_email_notifications : emails
+
+    users ||--o{ leaves : student
+    users ||--o{ leaves : creator
+    users ||--o{ leaves : registrar
+    users ||--o{ leaves : hours_decider
+    absences ||--o{ leaves : registered_absence
+    leaves ||--o{ guardian_leave_confirmations : confirmations
+    guardians ||--o{ guardian_leave_confirmations : signer
+    leaves ||--o{ leave_confirmation_tokens : tokens
+    guardians ||--o{ leave_confirmation_tokens : receiver
+    leaves ||--o{ leave_approvals : approvals
+    users ||--o{ leave_approvals : approver
+    leaves ||--o{ leave_email_notifications : emails
+
+    users ||--o{ operation_logs : actor
+    users ||--o{ notification_preferences : preferences
+    users ||--o| user_student_status_settings : status_settings
+    users ||--o{ monthly_reports : student
+    users ||--o{ monthly_reports : approver
+    users ||--o{ monthly_reports : creator
+    classes ||--o{ monthly_reports : school_class
+    monthly_reports ||--o{ monthly_report_email_notifications : emails
+    users ||--o{ school_holidays : created_by
+    users ||--o{ school_holidays : updated_by
+
+    users {
+      bigint id PK
+      string name
+      string surname
+      string role
+      string email UK
+      date birth_date
+      datetime email_verified_at
+      string password
+      boolean active
+      string avatar_path
+      string remember_token
+    }
+
+    classes {
+      bigint id PK
+      string name
+      string year
+      string section
+      boolean active
+    }
+
+    class_user {
+      bigint id PK
+      bigint class_id FK
+      bigint user_id FK
+      date start_date
+      date end_date
+    }
+
+    class_teacher {
+      bigint id PK
+      bigint class_id FK
+      bigint teacher_id FK
+      date start_date
+      date end_date
+    }
+
+    guardians {
+      bigint id PK
+      string name
+      string email UK
+    }
+
+    guardian_student {
+      bigint id PK
+      bigint guardian_id FK
+      bigint student_id FK
+      string relationship
+      boolean is_primary
+      boolean is_active
+      datetime deactivated_at
+    }
+
+    absences {
+      bigint id PK
+      bigint student_id FK
+      bigint derived_from_leave_id FK
+      date start_date
+      date end_date
+      string reason
+      string status
+      int assigned_hours
+      boolean counts_40_hours
+      text counts_40_hours_comment
+      date medical_certificate_deadline
+      boolean medical_certificate_required
+      boolean approved_without_guardian
+      text teacher_comment
+      text certificate_rejection_comment
+      text deadline_extension_comment
+      datetime deadline_extended_at
+      bigint deadline_extended_by FK
+      datetime auto_arbitrary_at
+      datetime hours_decided_at
+      bigint hours_decided_by FK
+    }
+
+    medical_certificates {
+      bigint id PK
+      bigint absence_id FK
+      string file_path
+      datetime uploaded_at
+      boolean valid
+      bigint validated_by FK
+      datetime validated_at
+    }
+
+    guardian_absence_confirmations {
+      bigint id PK
+      bigint absence_id FK
+      bigint guardian_id FK
+      string status
+      datetime confirmed_at
+      datetime signed_at
+      string signature_path
+      string ip_address
+      text notes
+    }
+
+    absence_confirmation_tokens {
+      bigint id PK
+      bigint absence_id FK
+      bigint guardian_id FK
+      string token_hash
+      datetime expires_at
+      datetime used_at
+    }
+
+    absence_email_notifications {
+      bigint id PK
+      string type
+      string recipient_email
+      string subject
+      text body
+      bigint absence_id FK
+      datetime sent_at
+      string status
+    }
+
+    delays {
+      bigint id PK
+      bigint student_id FK
+      bigint recorded_by FK
+      datetime delay_datetime
+      int minutes
+      date justification_deadline
+      string notes
+      text teacher_comment
+      datetime validated_at
+      bigint validated_by FK
+      datetime auto_arbitrary_at
+      string status
+      boolean count_in_semester
+      string exclusion_comment
+      boolean global
+      boolean converted_to_absence
+      bigint converted_absence_id FK
+    }
+
+    guardian_delay_confirmations {
+      bigint id PK
+      bigint delay_id FK
+      bigint guardian_id FK
+      string status
+      datetime confirmed_at
+      datetime signed_at
+      string signature_path
+      string ip_address
+      text notes
+    }
+
+    delay_confirmation_tokens {
+      bigint id PK
+      bigint delay_id FK
+      bigint guardian_id FK
+      string token_hash UK
+      datetime expires_at
+      datetime used_at
+    }
+
+    delay_email_notifications {
+      bigint id PK
+      string type
+      string recipient_email
+      string subject
+      text body
+      bigint delay_id FK
+      datetime sent_at
+      string status
+    }
+
+    leaves {
+      bigint id PK
+      bigint student_id FK
+      bigint created_by FK
+      datetime created_at_custom
+      date start_date
+      date end_date
+      int requested_hours
+      boolean hours_limit_exceeded_at_request
+      int hours_limit_value_at_request
+      int hours_limit_max_at_request
+      string requested_lessons
+      string destination
+      string reason
+      string status
+      boolean approved_without_guardian
+      boolean count_hours
+      text count_hours_comment
+      text workflow_comment
+      text documentation_request_comment
+      string documentation_path
+      datetime documentation_uploaded_at
+      datetime registered_at
+      bigint registered_by FK
+      bigint registered_absence_id FK
+      datetime hours_decision_at
+      bigint hours_decision_by FK
+    }
+
+    guardian_leave_confirmations {
+      bigint id PK
+      bigint leave_id FK
+      bigint guardian_id FK
+      string status
+      datetime confirmed_at
+      datetime signed_at
+      string signature_path
+      string ip_address
+      text notes
+    }
+
+    leave_confirmation_tokens {
+      bigint id PK
+      bigint leave_id FK
+      bigint guardian_id FK
+      string token_hash
+      datetime expires_at
+      datetime used_at
+    }
+
+    leave_approvals {
+      bigint id PK
+      bigint leave_id FK
+      bigint decided_by FK
+      string decision
+      text notes
+      datetime decided_at
+      boolean override_guardian_signature
+    }
+
+    leave_email_notifications {
+      bigint id PK
+      string type
+      string recipient_email
+      string subject
+      text body
+      bigint leave_id FK
+      datetime sent_at
+      string status
+    }
+
+    absence_settings {
+      bigint id PK
+      int max_annual_hours
+      int warning_threshold_hours
+      string vice_director_email
+      int student_status_warning_percent
+      int student_status_critical_percent
+      boolean guardian_signature_required
+      int medical_certificate_days
+      int medical_certificate_max_days
+      int absence_countdown_days
+      int leave_request_notice_working_hours
+    }
+
+    absence_reasons {
+      bigint id PK
+      string name
+      boolean counts_40_hours
+      boolean requires_management_consent
+      boolean requires_document_on_leave_creation
+      text management_consent_note
+    }
+
+    delay_settings {
+      bigint id PK
+      int minutes_threshold
+      boolean guardian_signature_required
+      boolean deadline_active
+      int deadline_business_days
+      int justification_business_days
+      int pre_expiry_warning_business_days
+    }
+
+    delay_rules {
+      bigint id PK
+      int min_delays
+      int max_delays
+      json actions
+      string info_message
+    }
+
+    monthly_reports {
+      bigint id PK
+      bigint student_id FK
+      bigint class_id FK
+      date report_month
+      string status
+      json summary_json
+      string system_pdf_path
+      string signed_pdf_path
+      datetime generated_at
+      datetime sent_at
+      datetime last_sent_at
+      datetime signed_uploaded_at
+      datetime approved_at
+      bigint approved_by FK
+      bigint created_by FK
+      text failure_reason
+    }
+
+    monthly_report_email_notifications {
+      bigint id PK
+      bigint monthly_report_id FK
+      string type
+      string recipient_email
+      string subject
+      text body
+      datetime sent_at
+      string status
+      text error_message
+    }
+
+    notification_preferences {
+      bigint id PK
+      bigint user_id FK
+      string event_key
+      boolean web_enabled
+      boolean email_enabled
+    }
+
+    notifications {
+      uuid id PK
+      string type
+      string notifiable_type
+      bigint notifiable_id
+      text data
+      datetime read_at
+    }
+
+    operation_logs {
+      bigint id PK
+      bigint user_id FK
+      string level
+      string action
+      string entity
+      bigint entity_id
+      json payload
+      string ip
+    }
+
+    operation_log_settings {
+      bigint id PK
+      int interaction_retention_days
+      int error_retention_days
+    }
+
+    login_security_settings {
+      bigint id PK
+      int max_attempts
+      int decay_seconds
+      int forgot_password_max_attempts
+      int forgot_password_decay_seconds
+      int reset_password_max_attempts
+      int reset_password_decay_seconds
+    }
+
+    user_student_status_settings {
+      bigint id PK
+      bigint user_id FK
+      int absence_warning_percent
+      int absence_critical_percent
+      int delay_warning_percent
+      int delay_critical_percent
+    }
+
+    school_holidays {
+      bigint id PK
+      date holiday_date UK
+      string school_year
+      string label
+      string source
+      string source_file_path
+      bigint created_by FK
+      bigint updated_by FK
+    }

@@ -1,0 +1,37 @@
+SVILUPPI FUTURI
+
+1) Gestione archivio anni scolastici
+
+Situazione attuale
+Attualmente il sistema viene usato come archivio unico. In caso di nuovo anno scolastico, la soluzione piu semplice sarebbe azzerare o eliminare i dati precedenti, ma questa scelta rende impossibile consultare lo storico degli studenti e riduce il valore del progetto nel tempo.
+
+Obiettivo
+Introdurre una gestione strutturata degli anni scolastici, in modo che:
+- a inizio nuovo anno si lavori su dati "correnti" puliti;
+- i dati degli anni precedenti vengano archiviati automaticamente;
+- lo storico resti consultabile da studenti, docenti e amministrazione con filtri per anno.
+
+Proposta funzionale
+Lo sviluppo prevede una logica di "chiusura anno" e "apertura anno":
+- Chiusura anno: il sistema blocca l'anno concluso in sola lettura e conserva classi, assenze, ritardi, congedi e report.
+- Apertura anno: il sistema crea il nuovo contesto operativo, aggiorna classi e assegnazioni da import GAGI e riparte con i conteggi annuali del nuovo ciclo.
+- Consultazione storico: ogni utente autorizzato puo selezionare l'anno scolastico e visualizzare i dati storici senza modificare il passato.
+
+Benefici principali
+- Nessuna perdita dati tra un anno e l'altro.
+- Tracciabilita completa del percorso dello studente.
+- Avvio del nuovo anno piu ordinato e meno soggetto a errori manuali.
+- Maggiore qualita del sistema in ottica reale (uso continuativo multi-anno).
+
+Fattibilita e difficolta
+La funzionalita e fattibile e coerente con l'architettura del progetto, ma richiede un intervento trasversale su database, logica backend e interfaccia.
+- Fattibilita: alta.
+- Difficolta: medio-alta.
+- Priorita consigliata: alta, perche impatta direttamente sulla continuita del sistema.
+
+Nota operativa
+Questo sviluppo e consigliato come estensione successiva al rilascio attuale, con test dedicati al cambio anno e alla correttezza dei conteggi annuali.
+
+2) Casi estremi: gestione tutore per studente maggiorenne
+
+Estendere ulteriormente la logica dei tutori per coprire in modo completo i casi limite legati al passaggio alla maggiore eta (attivazione/disattivazione automatica notifiche, firma e visibilita dati in base allo stato dello studente).
