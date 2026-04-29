@@ -1,3 +1,0 @@
-.env.docker
-.env.docker.*
-!.env.docker.example
