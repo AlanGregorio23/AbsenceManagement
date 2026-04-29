@@ -12,7 +12,7 @@ const fallbackStats = [
 const fallbackRows = [];
 const statDecorations = [
     { icon: 'requests', tone: 'sky' },
-    { icon: 'signature', tone: 'amber' },
+    { icon: 'clock', tone: 'indigo' },
     { icon: 'calendar', tone: 'emerald' },
     { icon: 'warning', tone: 'rose' },
 ];

@@ -152,12 +152,12 @@ export default function TeacherAbsenceDetail({
             {
                 key: 'accept_certificate',
                 label: 'Accetta certificato',
-                enabled: !item.from_leave && item.can_accept_certificate,
+                enabled: item.can_accept_certificate,
             },
             {
                 key: 'reject_certificate',
                 label: 'Rifiuta certificato',
-                enabled: !item.from_leave && item.can_reject_certificate,
+                enabled: item.can_reject_certificate,
             },
         ];
 
@@ -498,7 +498,7 @@ export default function TeacherAbsenceDetail({
                 </div>
 
                 <div className="grid items-stretch gap-6 lg:grid-cols-2">
-                    <section className="h-full space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <section className="flex h-full flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                         <div>
                             <h2 className="text-sm font-semibold text-slate-800">
                                 Dati assenza
@@ -618,7 +618,7 @@ export default function TeacherAbsenceDetail({
                             )}
                         </div>
 
-                        <div id="azioni" className="rounded-xl border border-slate-200 p-3">
+                        <div id="azioni" className="mt-auto rounded-xl border border-slate-200 p-3">
                             <h3 className="text-sm font-semibold text-slate-800">
                                 Azioni assenza
                             </h3>
@@ -627,47 +627,56 @@ export default function TeacherAbsenceDetail({
                                     Nessuna azione disponibile su questa assenza.
                                 </p>
                             )}
-                            <div className="mt-3 flex flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1">
-                                {actions.map((action) => {
-                                    const iconOnly = action.key === 'edit' || action.key === 'delete';
-                                    const buttonClass = iconOnly
-                                        ? actionStyles[action.key]
-                                        : `${actionStyles[action.key]} whitespace-nowrap`;
-
-                                    return (
-                                        <button
-                                            key={action.key}
-                                            type="button"
-                                            title={action.label}
-                                            aria-label={action.label}
-                                            className={`shrink-0 ${buttonClass}`}
-                                            onClick={() => openAction(action.key)}
-                                        >
-                                            {iconOnly ? (
-                                                <ActionGlyph actionKey={action.key} className="h-4 w-4" />
-                                            ) : (
+                            <div className="mt-3 flex flex-nowrap items-center justify-between gap-3 overflow-x-auto whitespace-nowrap pb-1">
+                                <div className="flex shrink-0 items-center gap-2">
+                                    {actions
+                                        .filter((action) => action.key !== 'edit' && action.key !== 'delete')
+                                        .map((action) => (
+                                            <button
+                                                key={action.key}
+                                                type="button"
+                                                title={action.label}
+                                                aria-label={action.label}
+                                                className={`shrink-0 whitespace-nowrap ${actionStyles[action.key]}`}
+                                                onClick={() => openAction(action.key)}
+                                            >
                                                 <span className="inline-flex items-center gap-1.5">
                                                     <ActionGlyph actionKey={action.key} />
                                                     <span>{action.label}</span>
                                                 </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                                {item.can_resend_guardian_email && (
-                                    <form
-                                        onSubmit={submitResendGuardianEmail}
-                                        className="shrink-0"
-                                    >
-                                        <button
-                                            type="submit"
-                                            className="btn-soft-info whitespace-nowrap"
-                                            disabled={resendGuardianEmailForm.processing}
+                                            </button>
+                                        ))}
+                                    {item.can_resend_guardian_email && (
+                                        <form
+                                            onSubmit={submitResendGuardianEmail}
+                                            className="shrink-0"
                                         >
-                                            Reinvia email conferma tutore
-                                        </button>
-                                    </form>
-                                )}
+                                            <button
+                                                type="submit"
+                                                className="btn-soft-info whitespace-nowrap"
+                                                disabled={resendGuardianEmailForm.processing}
+                                            >
+                                                Reinvia email conferma tutore
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
+                                <div className="ml-auto flex shrink-0 items-center gap-2">
+                                    {actions
+                                        .filter((action) => action.key === 'edit' || action.key === 'delete')
+                                        .map((action) => (
+                                            <button
+                                                key={action.key}
+                                                type="button"
+                                                title={action.label}
+                                                aria-label={action.label}
+                                                className={`shrink-0 ${actionStyles[action.key]}`}
+                                                onClick={() => openAction(action.key)}
+                                            >
+                                                <ActionGlyph actionKey={action.key} className="h-4 w-4" />
+                                            </button>
+                                        ))}
+                                </div>
                             </div>
                         </div>
                     </section>

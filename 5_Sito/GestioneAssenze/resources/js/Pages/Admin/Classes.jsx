@@ -522,7 +522,7 @@ export default function Classes({
                                     <td className="py-3 text-center">
                                         <button
                                             type="button"
-                                            className="inline-flex h-9 items-center justify-center rounded-lg bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                                            className="btn-soft-primary h-8"
                                             onClick={() => openClassDetailsModal(row)}
                                         >
                                             Dettagli

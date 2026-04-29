@@ -18,7 +18,7 @@ const ICON = {
     history: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 8v4l3 2',
     docs: 'M4 6h16v12H4zM7 3h10v3H7',
     report: 'M5 4h14v16H5zM9 16v-3M12 16V9M15 16v-6',
-    users: 'M16 11a4 4 0 1 0-8 0M3 20a6 6 0 0 1 18 0',
+    users: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
     classes: 'M3 8l9-4 9 4-9 4zM6 10v5c0 1.8 2.7 3.2 6 3.2s6-1.4 6-3.2v-5',
     settings: 'M4 6h16M4 12h16M4 18h16M8 6a1.5 1.5 0 1 0 0 .01M14 12a1.5 1.5 0 1 0 0 .01M10 18a1.5 1.5 0 1 0 0 .01',
     logs: 'M12 3 2 21h20L12 3zM12 9v5M12 17h.01',
@@ -294,7 +294,14 @@ export default function AuthenticatedLayout({ children, showBreadcrumbs = true }
             ),
         [sections]
     );
-    const isActive = (item) => item.a.some((name) => route().current(name));
+    const isActive = (item) =>
+        item.a.some((name) => {
+            if (route().current(name)) {
+                return true;
+            }
+
+            return name.endsWith('.*') && route().current(name.slice(0, -2));
+        });
 
     const searchResults = useMemo(() => {
         const query = normalize(search);

@@ -482,21 +482,10 @@ class TeacherAbsenceController extends BaseController
 
         $teacher = $request->user();
         $absence = $this->resolveTeacherAbsence($teacher, $absence->id);
-        if (! is_null($absence->derived_from_leave_id)) {
-            return back()->withErrors([
-                'absence' => 'Le assenze derivate da congedo non prevedono accetta/rifiuta certificato.',
-            ]);
-        }
         $statusCode = Absence::normalizeStatus($absence->status);
         if (! in_array($statusCode, [Absence::STATUS_REPORTED, Absence::STATUS_JUSTIFIED], true)) {
             return back()->withErrors([
-                'absence' => 'Puoi validare il certificato solo su assenze aperte o giustificate entro il termine.',
-            ]);
-        }
-        $effectiveDeadline = $absence->syncMedicalCertificateDeadline();
-        if (Carbon::today()->gt($effectiveDeadline)) {
-            return back()->withErrors([
-                'absence' => 'Il termine per validare il certificato e scaduto. Usa la proroga dell assenza.',
+                'absence' => 'Puoi validare il certificato solo su assenze aperte o giustificate.',
             ]);
         }
 
@@ -543,21 +532,10 @@ class TeacherAbsenceController extends BaseController
 
         $teacher = $request->user();
         $absence = $this->resolveTeacherAbsence($teacher, $absence->id);
-        if (! is_null($absence->derived_from_leave_id)) {
-            return back()->withErrors([
-                'absence' => 'Le assenze derivate da congedo non prevedono accetta/rifiuta certificato.',
-            ]);
-        }
         $statusCode = Absence::normalizeStatus($absence->status);
         if (! in_array($statusCode, [Absence::STATUS_REPORTED, Absence::STATUS_JUSTIFIED], true)) {
             return back()->withErrors([
-                'absence' => 'Puoi rifiutare il certificato solo su assenze aperte o giustificate entro il termine.',
-            ]);
-        }
-        $effectiveDeadline = $absence->syncMedicalCertificateDeadline();
-        if (Carbon::today()->gt($effectiveDeadline)) {
-            return back()->withErrors([
-                'absence' => 'Il termine per rifiutare il certificato e scaduto. Usa la proroga dell assenza.',
+                'absence' => 'Puoi rifiutare il certificato solo su assenze aperte o giustificate.',
             ]);
         }
 

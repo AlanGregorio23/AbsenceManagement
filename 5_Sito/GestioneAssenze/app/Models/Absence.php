@@ -852,14 +852,10 @@ class Absence extends Model
                     true
                 ) && ! $guardianSigned;
                 $isDerivedFromLeave = ! is_null($assenza->derived_from_leave_id);
-                $canAcceptCertificate = ! $isDerivedFromLeave
-                    && in_array($statusCode, [self::STATUS_REPORTED, self::STATUS_JUSTIFIED], true)
-                    && $daysToDeadline >= 0
+                $canAcceptCertificate = in_array($statusCode, [self::STATUS_REPORTED, self::STATUS_JUSTIFIED], true)
                     && $certificateUploaded
                     && ! $certificateValidated;
-                $canRejectCertificate = ! $isDerivedFromLeave
-                    && in_array($statusCode, [self::STATUS_REPORTED, self::STATUS_JUSTIFIED], true)
-                    && $daysToDeadline >= 0
+                $canRejectCertificate = in_array($statusCode, [self::STATUS_REPORTED, self::STATUS_JUSTIFIED], true)
                     && $certificateUploaded
                     && ! $certificateValidated;
                 $derivedLeaveCode = $isDerivedFromLeave

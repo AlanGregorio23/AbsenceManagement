@@ -297,7 +297,7 @@ export default function ErrorLogs({
                                         <button
                                             type="button"
                                             onClick={() => setSelectedLog(log)}
-                                            className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                                            className="btn-soft-primary h-8"
                                         >
                                             Dettagli
                                         </button>

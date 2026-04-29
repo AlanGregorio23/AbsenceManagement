@@ -527,7 +527,7 @@ export default function AdminDashboard({
                                                 <span>Attore: {log.attore ?? 'Sistema'}</span>
                                             </div>
                                             <div className="mt-2">
-                                                <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700">
+                                                <span className="btn-soft-primary h-8">
                                                     Dettagli
                                                 </span>
                                             </div>

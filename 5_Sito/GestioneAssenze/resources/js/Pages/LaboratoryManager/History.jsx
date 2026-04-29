@@ -177,7 +177,7 @@ export default function LaboratoryManagerHistory({ items = rows }) {
                                         {row.leave_id ? (
                                             <Link
                                                 href={route('leaves.show', row.leave_id)}
-                                                className="btn-soft-neutral whitespace-nowrap"
+                                                className="btn-soft-primary whitespace-nowrap"
                                             >
                                                 Apri pratica
                                             </Link>

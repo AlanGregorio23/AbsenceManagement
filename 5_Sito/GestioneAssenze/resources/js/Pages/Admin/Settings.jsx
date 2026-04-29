@@ -539,6 +539,7 @@ export default function Settings({ settings, retentionAdvice = null }) {
         holidayImportForm.post(route('admin.settings.holidays.import'), {
             forceFormData: true,
             preserveScroll: true,
+            preserveState: false,
             onSuccess: () => holidayImportForm.reset('calendar_pdf'),
         });
     };
@@ -824,22 +825,19 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                 />
                             </div>
                             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                                <table className="w-full min-w-[820px] text-sm">
+                                <table className="w-full min-w-[720px] table-fixed text-sm">
                                     <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                                         <tr>
                                             <th className="px-3 py-2 text-left">
                                                 Motivazione
                                             </th>
-                                            <th className="w-32 px-3 py-2 text-left">
+                                            <th className="w-36 px-3 py-2 text-left">
                                                 Limite ore
                                             </th>
-                                            <th className="w-32 px-3 py-2 text-left">
+                                            <th className="w-24 px-3 py-2 text-center">
                                                 Speciale
                                             </th>
-                                            <th className="w-40 px-3 py-2 text-left">
-                                                Documento
-                                            </th>
-                                            <th className="w-24 px-3 py-2 text-right">
+                                            <th className="w-28 px-3 py-2 text-right">
                                                 Azioni
                                             </th>
                                         </tr>
@@ -847,47 +845,47 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                     <tbody className="divide-y divide-slate-100">
                                         {data.reasons.map((reason, index) => (
                                             <Fragment key={`reason-${index}`}>
-                                            <tr>
-                                                <td className="px-3 py-2 align-top">
-                                                    <input
-                                                        className={`${fieldClass} w-full`}
-                                                        value={reason.name}
-                                                        onChange={(event) =>
-                                                            updateReason(
-                                                                index,
-                                                                'name',
-                                                                event.target.value
-                                                            )
-                                                        }
-                                                        placeholder="Motivazione"
-                                                    />
-                                                </td>
-                                                <td className="px-3 py-2 align-top">
-                                                    <select
-                                                        className={`${selectClass} w-full`}
-                                                        value={
-                                                            reason.counts_40_hours
-                                                                ? 'in'
-                                                                : 'out'
-                                                        }
-                                                        onChange={(event) =>
-                                                            updateReason(
-                                                                index,
-                                                                'counts_40_hours',
-                                                                event.target.value === 'in'
-                                                            )
-                                                        }
-                                                    >
-                                                        <option value="in">Conta</option>
-                                                        <option value="out">
-                                                            Esclusa
-                                                        </option>
-                                                    </select>
-                                                </td>
-                                                <td className="px-3 py-2 text-center align-top">
-                                                    <label className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white">
+                                                <tr>
+                                                    <td className="px-3 py-2 align-middle">
+                                                        <input
+                                                            className={`${fieldClass} w-full`}
+                                                            value={reason.name}
+                                                            onChange={(event) =>
+                                                                updateReason(
+                                                                    index,
+                                                                    'name',
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            placeholder="Motivazione"
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-2 align-middle">
+                                                        <select
+                                                            className={`${selectClass} w-full`}
+                                                            value={
+                                                                reason.counts_40_hours
+                                                                    ? 'in'
+                                                                    : 'out'
+                                                            }
+                                                            onChange={(event) =>
+                                                                updateReason(
+                                                                    index,
+                                                                    'counts_40_hours',
+                                                                    event.target.value === 'in'
+                                                                )
+                                                            }
+                                                        >
+                                                            <option value="in">Conta</option>
+                                                            <option value="out">
+                                                                Esclusa
+                                                            </option>
+                                                        </select>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center align-middle">
                                                         <input
                                                             type="checkbox"
+                                                            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-100"
                                                             aria-label="Motivazione speciale"
                                                             checked={Boolean(
                                                                 reason.requires_management_consent
@@ -900,61 +898,60 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                                                 )
                                                             }
                                                         />
-                                                    </label>
-                                                </td>
-                                                <td className="px-3 py-2 text-center align-top">
-                                                    {Boolean(reason.requires_management_consent) && (
-                                                        <label className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white">
-                                                            <input
-                                                                type="checkbox"
-                                                                aria-label="Richiedi documento subito"
-                                                                checked={Boolean(
-                                                                    reason.requires_document_on_leave_creation
-                                                                )}
-                                                                onChange={(event) =>
-                                                                    updateReason(
-                                                                        index,
-                                                                        'requires_document_on_leave_creation',
-                                                                        event.target.checked
-                                                                    )
-                                                                }
-                                                            />
-                                                        </label>
-                                                    )}
-                                                </td>
-                                                <td className="px-3 py-2 text-right align-top">
-                                                    <button
-                                                        type="button"
-                                                        className="btn-soft-danger"
-                                                        onClick={() => removeReason(index)}
-                                                    >
-                                                        Rimuovi
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                            {Boolean(reason.requires_management_consent) && (
-                                                <tr className="bg-amber-50/60">
-                                                    <td colSpan={5} className="px-3 pb-3">
-                                                        <textarea
-                                                            rows="3"
-                                                            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-100"
-                                                            value={
-                                                                reason.management_consent_note
-                                                                ?? ''
-                                                            }
-                                                            onChange={(event) =>
-                                                                updateReason(
-                                                                    index,
-                                                                    'management_consent_note',
-                                                                    event.target.value
-                                                                )
-                                                            }
-                                                            maxLength={2000}
-                                                            placeholder="Nota per allievo"
-                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right align-middle">
+                                                        <button
+                                                            type="button"
+                                                            className="btn-soft-danger"
+                                                            onClick={() => removeReason(index)}
+                                                        >
+                                                            Rimuovi
+                                                        </button>
                                                     </td>
                                                 </tr>
-                                            )}
+                                                {Boolean(reason.requires_management_consent) && (
+                                                    <tr className="bg-amber-50/60">
+                                                        <td colSpan={4} className="px-3 pb-3">
+                                                            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+                                                                <textarea
+                                                                    rows="3"
+                                                                    className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                                                                    value={
+                                                                        reason.management_consent_note
+                                                                        ?? ''
+                                                                    }
+                                                                    onChange={(event) =>
+                                                                        updateReason(
+                                                                            index,
+                                                                            'management_consent_note',
+                                                                            event.target.value
+                                                                        )
+                                                                    }
+                                                                    maxLength={2000}
+                                                                    placeholder="Nota per allievo"
+                                                                />
+                                                                <label className="flex items-center gap-2 self-start pt-2 text-sm font-medium text-slate-700">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-100"
+                                                                        aria-label="Richiedi documento subito"
+                                                                        checked={Boolean(
+                                                                            reason.requires_document_on_leave_creation
+                                                                        )}
+                                                                        onChange={(event) =>
+                                                                            updateReason(
+                                                                                index,
+                                                                                'requires_document_on_leave_creation',
+                                                                                event.target.checked
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                    Documento subito
+                                                                </label>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
                                             </Fragment>
                                         ))}
                                     </tbody>

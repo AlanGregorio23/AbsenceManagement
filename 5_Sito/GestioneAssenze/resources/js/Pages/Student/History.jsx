@@ -162,7 +162,7 @@ export default function History({ items = [] }) {
                                     <button
                                         type="button"
                                         onClick={() => setSelectedItem(row)}
-                                        className="btn-soft-neutral h-8"
+                                        className="btn-soft-primary h-8"
                                     >
                                         Apri pratica
                                     </button>
@@ -228,7 +228,7 @@ export default function History({ items = [] }) {
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedItem(row)}
-                                                className="btn-soft-neutral h-8"
+                                                    className="btn-soft-primary h-8"
                                             >
                                                 Apri pratica
                                             </button>

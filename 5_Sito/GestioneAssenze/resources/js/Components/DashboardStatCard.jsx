@@ -1,9 +1,9 @@
 const iconPaths = {
     requests: 'M5 4h14v16H5zM8 8h8M8 12h8M8 16h5',
-    signature: 'M5 19c4-7 8-11 14-14M7 17l-2 2 3-.5M14 6l4 4',
+    signature: 'M12 4a8 8 0 1 1 0 16 8 8 0 0 1 0-16zM12 8v5l3 2',
     warning: 'M12 3 2 21h20L12 3zM12 9v5M12 17h.01',
     docs: 'M6 3h8l4 4v14H6zM14 3v5h5M9 13h6M9 17h6',
-    users: 'M16 11a4 4 0 1 0-8 0M3 20a6 6 0 0 1 18 0',
+    users: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0',
     classes: 'M3 8l9-4 9 4-9 4zM6 10v5c0 1.8 2.7 3.2 6 3.2s6-1.4 6-3.2v-5',
     teacher: 'M12 4 3 8l9 4 9-4zM6 10v5c0 2 3 4 6 4s6-2 6-4v-5',
     errors: 'M12 3 2 21h20L12 3zM12 9v5M12 17h.01',

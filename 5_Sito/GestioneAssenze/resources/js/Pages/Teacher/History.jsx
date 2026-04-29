@@ -147,7 +147,7 @@ export default function TeacherHistory({ items = fallbackItems }) {
                                             {requestHref ? (
                                                 <Link
                                                     href={requestHref}
-                                                    className="btn-soft-neutral whitespace-nowrap"
+                                                    className="btn-soft-primary whitespace-nowrap"
                                                 >
                                                     Apri pratica
                                                 </Link>
