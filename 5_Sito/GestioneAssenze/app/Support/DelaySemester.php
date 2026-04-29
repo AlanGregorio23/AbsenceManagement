@@ -18,32 +18,41 @@ class DelaySemester
         return self::fromDate(now());
     }
 
-    public static function fromDate(CarbonInterface $referenceDate): self
+    public static function fromDate(
+        CarbonInterface $referenceDate,
+        int $firstSemesterEndMonth = 1,
+        int $firstSemesterEndDay = 26
+    ): self
     {
         $reference = CarbonImmutable::instance($referenceDate)->startOfDay();
-        $year = (int) $reference->year;
-        $month = (int) $reference->month;
+        $schoolYearStartYear = (int) ($reference->month >= 8 ? $reference->year : $reference->year - 1);
+        $schoolYearStart = CarbonImmutable::create($schoolYearStartYear, 8, 1)->startOfDay();
+        $schoolYearEnd = CarbonImmutable::create($schoolYearStartYear + 1, 7, 31)->endOfDay();
+        $firstSemesterEndYear = $firstSemesterEndMonth >= 8
+            ? $schoolYearStartYear
+            : $schoolYearStartYear + 1;
+        $monthStart = CarbonImmutable::create($firstSemesterEndYear, $firstSemesterEndMonth, 1)->startOfDay();
+        $resolvedFirstSemesterEndDay = min($firstSemesterEndDay, $monthStart->daysInMonth);
+        $firstSemesterEnd = CarbonImmutable::create(
+            $firstSemesterEndYear,
+            $firstSemesterEndMonth,
+            $resolvedFirstSemesterEndDay
+        )->endOfDay();
 
-        if ($month >= 8) {
+        if ($reference->lessThanOrEqualTo($firstSemesterEnd)) {
             return new self(
-                CarbonImmutable::create($year, 8, 1)->startOfDay(),
-                CarbonImmutable::create($year + 1, 1, 31)->endOfDay(),
-                sprintf('%d-S1', $year)
+                $schoolYearStart,
+                $firstSemesterEnd,
+                sprintf('%d-S1', $schoolYearStartYear)
             );
         }
 
-        if ($month <= 1) {
-            return new self(
-                CarbonImmutable::create($year - 1, 8, 1)->startOfDay(),
-                CarbonImmutable::create($year, 1, 31)->endOfDay(),
-                sprintf('%d-S1', $year - 1)
-            );
-        }
+        $secondSemesterStart = $firstSemesterEnd->addDay()->startOfDay();
 
         return new self(
-            CarbonImmutable::create($year, 2, 1)->startOfDay(),
-            CarbonImmutable::create($year, 7, 31)->endOfDay(),
-            sprintf('%d-S2', $year)
+            $secondSemesterStart,
+            $schoolYearEnd,
+            sprintf('%d-S2', $secondSemesterStart->year)
         );
     }
 }

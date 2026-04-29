@@ -238,7 +238,7 @@ class LaboratoryManagerLeaveController extends BaseController
             $successMessage .= ' Avviso: lo studente risulta gia oltre il limite ore annuale configurato.';
         }
 
-        return redirect()->route('lab.leaves')->with('success', $successMessage);
+        return redirect()->route('dashboard')->with('success', $successMessage);
     }
 
     /**

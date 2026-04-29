@@ -15,7 +15,11 @@
     </p>
 
     <div style="margin:0 0 20px;padding:12px 14px;border-radius:8px;background-color:#f8fafc;border:1px solid #dbeafe;font-size:13px;line-height:1.55;">
+        @if($expiryMinutes !== null)
         Il link e valido per <strong>{{ $expiryMinutes }} minuti</strong>.
+        @else
+        Il link resta valido <strong>finche non imposti la password</strong>.
+        @endif
         Se non hai richiesto tu questa operazione, ignora questa email.
     </div>
 

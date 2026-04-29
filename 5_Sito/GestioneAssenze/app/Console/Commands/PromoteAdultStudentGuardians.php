@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\AdultGuardianTransitionMail;
+use App\Jobs\Mail\AdultGuardianTransitionMail;
 use App\Models\Guardian;
 use App\Models\OperationLog;
 use App\Models\User;

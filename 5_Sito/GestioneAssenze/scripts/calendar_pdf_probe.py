@@ -3,7 +3,10 @@ import argparse
 import calendar
 import datetime as dt
 import json
+import re
 import statistics
+import sys
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -26,6 +29,15 @@ MONTH_CYCLE = [
     "LUGLIO",
 ]
 
+FIRST_SEMESTER_MONTHS = [
+    "AGOSTO",
+    "SETTEMBRE",
+    "OTTOBRE",
+    "NOVEMBRE",
+    "DICEMBRE",
+    "GENNAIO",
+]
+
 MONTH_NUM = {
     "GENNAIO": 1,
     "FEBBRAIO": 2,
@@ -40,6 +52,101 @@ MONTH_NUM = {
     "NOVEMBRE": 11,
     "DICEMBRE": 12,
 }
+
+HYPHENS = str.maketrans({
+    "\u2010": "-",
+    "\u2011": "-",
+    "\u2012": "-",
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2212": "-",
+})
+
+WEEKDAY_LETTERS = set("LMGVSD")
+
+
+class CalendarFormatError(RuntimeError):
+    pass
+
+
+def normalize_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    normalized = normalized.replace("\xa0", " ").translate(HYPHENS)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def parse_school_year(extracted_text: str) -> tuple[int, int, str]:
+    normalized = normalize_text(extracted_text)
+    match = re.search(
+        r"\bCalendario\s+scolastico\s+(\d{4})\s*-\s*(\d{4})\b",
+        normalized,
+        re.IGNORECASE,
+    )
+    if match is None:
+        match = re.search(r"\b(\d{4})\s*-\s*(\d{4})\b", normalized)
+
+    if match is None:
+        raise CalendarFormatError(
+            "Formato calendario non valido: anno scolastico non trovato nel titolo."
+        )
+
+    start_year = int(match.group(1))
+    end_year = int(match.group(2))
+    if end_year != start_year + 1:
+        raise CalendarFormatError(
+            "Formato calendario non valido: anno scolastico non coerente."
+        )
+
+    return start_year, end_year, f"{start_year}-{end_year}"
+
+
+def parse_first_semester_end_date(
+    extracted_text: str,
+    school_year_start: int,
+    school_year_end: int,
+) -> dt.date:
+    marker_regex = re.compile(r"FINE\s+1\s*[°º]?\s+SEMESTRE", re.IGNORECASE)
+
+    for raw_line in extracted_text.splitlines():
+        line = normalize_text(raw_line)
+        marker = marker_regex.search(line)
+        if marker is None:
+            continue
+
+        day_match = re.match(r"^(\d{1,2})\b", line)
+        if day_match is None:
+            day_match = re.search(r"\b([1-9]|[12]\d|3[01])\b", line[: marker.start()])
+
+        if day_match is None:
+            break
+
+        day = int(day_match.group(1))
+        before_marker = line[: marker.start()]
+        before_marker = re.sub(r"^\d{1,2}\b", "", before_marker).strip()
+        month_offset = 0
+
+        for token in before_marker.split():
+            compact = re.sub(r"[^A-Z]", "", token.upper())
+            if compact and all(char in WEEKDAY_LETTERS for char in compact):
+                month_offset += len(compact)
+
+        if month_offset >= len(FIRST_SEMESTER_MONTHS):
+            break
+
+        month_label = FIRST_SEMESTER_MONTHS[month_offset]
+        month_number = MONTH_NUM[month_label]
+        year = year_for_month(month_number, school_year_start, school_year_end)
+
+        try:
+            return dt.date(year, month_number, day)
+        except ValueError as exc:
+            raise CalendarFormatError(
+                "Formato calendario non valido: data fine primo semestre non valida."
+            ) from exc
+
+    raise CalendarFormatError(
+        "Formato calendario non valido: marker 'FINE 1° SEMESTRE' non trovato."
+    )
 
 
 def sig_rgb(sig: str) -> tuple[float, float, float] | None:
@@ -60,13 +167,17 @@ def luminance(sig: str) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-def year_for_month(month_number: int) -> int:
-    return 2025 if month_number >= 8 else 2026
+def year_for_month(month_number: int, school_year_start: int, school_year_end: int) -> int:
+    return school_year_start if month_number >= 8 else school_year_end
 
 
-def expected_red_days(month_label: str) -> set[int]:
+def expected_red_days(
+    month_label: str,
+    school_year_start: int,
+    school_year_end: int,
+) -> set[int]:
     month_number = MONTH_NUM[month_label]
-    year = year_for_month(month_number)
+    year = year_for_month(month_number, school_year_start, school_year_end)
     _, days_in_month = calendar.monthrange(year, month_number)
     if days_in_month >= 31:
         return set()
@@ -105,7 +216,9 @@ def infer_month_order(
     row_count: int,
     red_by_row: dict[int, set[int]],
     month_order_from_text: list[str],
-) -> tuple[list[str], str]:
+    school_year_start: int,
+    school_year_end: int,
+) -> tuple[list[str], str, int | None]:
     if row_count == 12 and red_by_row:
         candidates: list[tuple[int, list[str], str]] = []
         for direction_name, base in [
@@ -117,17 +230,21 @@ def infer_month_order(
                 mismatch = 0
                 for row_index in range(12):
                     observed = red_by_row.get(row_index, set())
-                    expected = expected_red_days(seq[row_index])
+                    expected = expected_red_days(
+                        seq[row_index],
+                        school_year_start,
+                        school_year_end,
+                    )
                     mismatch += len(observed.symmetric_difference(expected))
                 candidates.append((mismatch, seq, f"{direction_name}+shift{shift}"))
 
         best_mismatch, best_seq, best_meta = min(candidates, key=lambda item: item[0])
-        return best_seq, f"red-calibrated ({best_meta}, mismatch={best_mismatch})"
+        return best_seq, f"red-calibrated ({best_meta}, mismatch={best_mismatch})", best_mismatch
 
     if len(month_order_from_text) >= 6:
-        return month_order_from_text, "text-positioned"
+        return month_order_from_text, "text-positioned", None
 
-    return list(reversed(MONTH_CYCLE)), "fallback-reverse-cycle"
+    return list(reversed(MONTH_CYCLE)), "fallback-reverse-cycle", None
 
 
 def map_fill_rectangles_to_cells(
@@ -168,8 +285,57 @@ def map_fill_rectangles_to_cells(
     return cells
 
 
+def validate_calendar_format(
+    columns: int,
+    rows: int,
+    month_order: list[str],
+    month_order_mismatch: int | None,
+    dark_green_sig: str | None,
+    red_sig: str | None,
+    dark_dates: list[str],
+    first_semester_end: dt.date,
+    school_year_start: int,
+    school_year_end: int,
+) -> None:
+    if columns != 31 or rows != 12:
+        raise CalendarFormatError(
+            "Formato calendario non valido: griglia attesa 31 giorni x 12 mesi."
+        )
+
+    if len(month_order) != 12 or set(month_order) != set(MONTH_CYCLE):
+        raise CalendarFormatError(
+            "Formato calendario non valido: mesi non riconosciuti correttamente."
+        )
+
+    if red_sig is None or month_order_mismatch is None or month_order_mismatch != 0:
+        raise CalendarFormatError(
+            "Formato calendario non valido: celle rosse dei giorni inesistenti non coerenti."
+        )
+
+    if dark_green_sig is None:
+        raise CalendarFormatError(
+            "Formato calendario non valido: colore vacanze scolastiche non trovato."
+        )
+
+    if not dark_dates:
+        raise CalendarFormatError(
+            "Formato calendario non valido: nessuna data vacanza trovata."
+        )
+
+    school_year_min = dt.date(school_year_start, 8, 1)
+    school_year_max = dt.date(school_year_end, 7, 31)
+    if not (school_year_min <= first_semester_end <= school_year_max):
+        raise CalendarFormatError(
+            "Formato calendario non valido: fine primo semestre fuori dall'anno scolastico."
+        )
+
+
 def analyze_pdf(pdf_path: Path) -> dict:
     reader = PdfReader(str(pdf_path))
+    if len(reader.pages) != 1:
+        raise CalendarFormatError(
+            "Formato calendario non valido: il PDF deve avere una sola pagina."
+        )
 
     op_counter: Counter[str] = Counter()
     rgb_color_counter: Counter[tuple[float, float, float]] = Counter()
@@ -180,6 +346,7 @@ def analyze_pdf(pdf_path: Path) -> dict:
     fill_rectangles_all: dict[str, list[tuple[float, float, float, float]]] = {}
     text_items: list[tuple[float, float, str]] = []
     page_previews: list[dict] = []
+    extracted_pages: list[str] = []
 
     for page_index, page in enumerate(reader.pages, start=1):
         def visitor_text(text, _cm, tm, _font_dict, _font_size):
@@ -194,6 +361,7 @@ def analyze_pdf(pdf_path: Path) -> dict:
             text_items.append((x, y, clean))
 
         extracted_text = (page.extract_text(visitor_text=visitor_text) or "").strip()
+        extracted_pages.append(extracted_text)
         page_preview = {
             "page": page_index,
             "text_length": len(extracted_text),
@@ -265,6 +433,15 @@ def analyze_pdf(pdf_path: Path) -> dict:
 
         page_previews.append(page_preview)
 
+    extracted_text = "\n".join(extracted_pages)
+    school_year_start, school_year_end, school_year_label = parse_school_year(extracted_text)
+    first_semester_end = parse_first_semester_end_date(
+        extracted_text,
+        school_year_start,
+        school_year_end,
+    )
+    second_semester_start = first_semester_end + dt.timedelta(days=1)
+
     day_grid_rects: list[tuple[float, float, float, float]] = []
     for rects in fill_rectangles_all.values():
         for x, y, w, h in rects:
@@ -304,10 +481,12 @@ def analyze_pdf(pdf_path: Path) -> dict:
         for row_index, day_number in red_cells:
             red_by_row.setdefault(row_index, set()).add(day_number)
 
-    month_order, month_order_reason = infer_month_order(
+    month_order, month_order_reason, month_order_mismatch = infer_month_order(
         len(unique_y),
         red_by_row,
         month_order_from_text,
+        school_year_start,
+        school_year_end,
     )
 
     month_by_row_index: dict[int, str] = {}
@@ -332,7 +511,7 @@ def analyze_pdf(pdf_path: Path) -> dict:
             month_number = MONTH_NUM.get(month_label)
             if not month_number:
                 continue
-            year = year_for_month(month_number)
+            year = year_for_month(month_number, school_year_start, school_year_end)
             try:
                 date_obj = dt.date(year, month_number, day_number)
             except ValueError:
@@ -341,10 +520,28 @@ def analyze_pdf(pdf_path: Path) -> dict:
 
     dark_dates = sorted(set(dark_dates))
 
+    validate_calendar_format(
+        len(unique_x),
+        len(unique_y),
+        month_order,
+        month_order_mismatch,
+        dark_green_sig,
+        red_sig,
+        dark_dates,
+        first_semester_end,
+        school_year_start,
+        school_year_end,
+    )
+
     return {
         "pdf": str(pdf_path),
         "size_bytes": pdf_path.stat().st_size,
         "pages": len(reader.pages),
+        "school_year": school_year_label,
+        "school_year_start": school_year_start,
+        "school_year_end": school_year_end,
+        "first_semester_end_date": first_semester_end.isoformat(),
+        "second_semester_start_date": second_semester_start.isoformat(),
         "page_previews": page_previews,
         "op_counter": op_counter,
         "rgb_color_counter": rgb_color_counter,
@@ -357,6 +554,7 @@ def analyze_pdf(pdf_path: Path) -> dict:
         "unique_x": unique_x,
         "unique_y": unique_y,
         "cell_height": cell_height,
+        "month_order_mismatch": month_order_mismatch,
         "dark_green_signature": dark_green_sig,
         "red_signature": red_sig,
         "dark_dates": dark_dates,
@@ -382,12 +580,29 @@ def main() -> int:
         print(json.dumps({"error": f"file not found: {pdf_path}"}))
         return 1
 
-    result = analyze_pdf(pdf_path)
+    try:
+        result = analyze_pdf(pdf_path)
+    except CalendarFormatError as exc:
+        print(str(exc), file=sys.stderr)
+        print(json.dumps({"error": str(exc)}, ensure_ascii=False))
+        return 1
+    except Exception as exc:
+        message = f"Errore parser calendario: {exc}"
+        print(message, file=sys.stderr)
+        print(json.dumps({"error": message}, ensure_ascii=False))
+        return 1
+
     payload = {
         "dates": result["dark_dates"],
         "metadata": {
+            "school_year": result["school_year"],
+            "school_year_start": result["school_year_start"],
+            "school_year_end": result["school_year_end"],
+            "first_semester_end_date": result["first_semester_end_date"],
+            "second_semester_start_date": result["second_semester_start_date"],
             "month_order": result["month_order"],
             "month_order_source": result["month_order_source"],
+            "month_order_mismatch": result["month_order_mismatch"],
             "columns": len(result["unique_x"]),
             "rows": len(result["unique_y"]),
             "dark_signature": result["dark_green_signature"],

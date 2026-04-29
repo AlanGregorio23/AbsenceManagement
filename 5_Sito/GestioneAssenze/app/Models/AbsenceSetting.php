@@ -19,6 +19,7 @@ class AbsenceSetting extends Model
         'medical_certificate_days',
         'medical_certificate_max_days',
         'absence_countdown_days',
+        'pre_expiry_warning_percent',
         'leave_request_notice_working_hours',
     ];
 
@@ -26,6 +27,7 @@ class AbsenceSetting extends Model
         'guardian_signature_required' => 'boolean',
         'student_status_warning_percent' => 'integer',
         'student_status_critical_percent' => 'integer',
+        'pre_expiry_warning_percent' => 'integer',
         'leave_request_notice_working_hours' => 'integer',
     ];
 }

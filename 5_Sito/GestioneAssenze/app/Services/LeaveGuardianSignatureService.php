@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Mail\AdultStudentGuardianInfoMail;
-use App\Mail\GuardianLeaveSignatureMail;
+use App\Jobs\Mail\AdultStudentGuardianInfoMail;
+use App\Jobs\Mail\GuardianLeaveSignatureMail;
 use App\Models\Absence;
 use App\Models\AbsenceSetting;
 use App\Models\GuardianLeaveConfirmation;

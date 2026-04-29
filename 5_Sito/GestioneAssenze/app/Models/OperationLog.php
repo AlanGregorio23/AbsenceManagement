@@ -71,6 +71,7 @@ class OperationLog extends Model
         'monthly_report.email.failed' => 'Errore invio email report mensile',
         'monthly_report.signed_uploaded' => 'Upload report mensile firmato',
         'monthly_report.approved' => 'Approvazione report mensile firmato',
+        'monthly_report.rejected' => 'Rifiuto report mensile firmato',
         'monthly_report.downloaded' => 'Download report mensile originale',
         'monthly_report.signed.downloaded' => 'Download report mensile firmato',
         'admin.user.updated' => 'Aggiornamento utente',

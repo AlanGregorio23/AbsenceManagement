@@ -1,5 +1,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
+import {
+    hoursOnLimitLabel,
+    resolveAnnualHoursLimitLabels,
+} from '@/annualHoursLimit';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { useMemo, useRef, useState } from 'react';
 
 const parseDateValue = (value) => {
@@ -46,6 +50,9 @@ const normalizeStudents = (students) => {
         .filter((student) => Number.isInteger(student.id) && student.id > 0);
 };
 
+const formatStudentSearchLabel = (student) =>
+    `${student.name} - ${student.className}`;
+
 const toggleLessonSelection = (values, lesson) => {
     const numericLesson = Number(lesson);
     if (!Number.isInteger(numericLesson)) {
@@ -86,12 +93,17 @@ export default function LaboratoryManagerLeaveCreate({
     students = [],
     settings = {},
 }) {
+    const { props } = usePage();
+    const annualHoursLimit = resolveAnnualHoursLimitLabels(props);
     const fileInputRef = useRef(null);
     const [fileName, setFileName] = useState('Nessun file selezionato');
     const [selectedReason, setSelectedReason] = useState('Altro');
+    const [studentSearchQuery, setStudentSearchQuery] = useState('');
     const normalizedLessonSlots = normalizeLessonSlots(lessonSlots);
     const normalizedStudents = normalizeStudents(students);
-    const maxAnnualHours = Number(settings?.max_annual_hours ?? 40);
+    const maxAnnualHours = Number(
+        settings?.max_annual_hours ?? annualHoursLimit.value
+    );
     const noticeWorkingHoursRaw = Number(settings?.leave_request_notice_working_hours ?? 24);
     const noticeWorkingHours = Number.isFinite(noticeWorkingHoursRaw)
         ? noticeWorkingHoursRaw
@@ -118,6 +130,27 @@ export default function LaboratoryManagerLeaveCreate({
 
         return normalizedStudents.find((student) => student.id === studentId) ?? null;
     }, [data.student_id, normalizedStudents]);
+
+    const selectedStudentSearchLabel = selectedStudent
+        ? formatStudentSearchLabel(selectedStudent)
+        : '';
+    const normalizedStudentSearchQuery = studentSearchQuery.trim().toLowerCase();
+    const shouldShowStudentResults =
+        normalizedStudentSearchQuery !== ''
+        && normalizedStudentSearchQuery !== selectedStudentSearchLabel.toLowerCase();
+    const filteredStudents = useMemo(() => {
+        if (normalizedStudentSearchQuery === '') {
+            return [];
+        }
+
+        return normalizedStudents
+            .filter((student) =>
+                `${student.name} ${student.className} ${student.email}`
+                    .toLowerCase()
+                    .includes(normalizedStudentSearchQuery)
+            )
+            .slice(0, 8);
+    }, [normalizedStudentSearchQuery, normalizedStudents]);
 
     const selectedReasonRule = reasons.find(
         (reason) =>
@@ -182,6 +215,23 @@ export default function LaboratoryManagerLeaveCreate({
         setFileName(file ? file.name : 'Nessun file selezionato');
     };
 
+    const handleStudentSearchChange = (event) => {
+        setStudentSearchQuery(event.target.value);
+        if (data.student_id !== '') {
+            setData('student_id', '');
+        }
+    };
+
+    const handleStudentSelect = (student) => {
+        setData('student_id', String(student.id));
+        setStudentSearchQuery(formatStudentSearchLabel(student));
+    };
+
+    const clearSelectedStudent = () => {
+        setData('student_id', '');
+        setStudentSearchQuery('');
+    };
+
     const handleStartDateChange = (event) => {
         const nextStartDate = event.target.value;
         setData('start_date', nextStartDate);
@@ -224,6 +274,7 @@ export default function LaboratoryManagerLeaveCreate({
             onSuccess: () => {
                 reset();
                 setSelectedReason('Altro');
+                setStudentSearchQuery('');
                 setFileName('Nessun file selezionato');
                 if (fileInputRef.current) {
                     fileInputRef.current.value = '';
@@ -356,18 +407,63 @@ export default function LaboratoryManagerLeaveCreate({
                         <div className="grid gap-4 md:grid-cols-2">
                             <label className="text-sm text-slate-600 md:col-span-2">
                                 Studente
-                                <select
+                                <input
+                                    type="search"
                                     className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                                    value={data.student_id}
-                                    onChange={(event) => setData('student_id', event.target.value)}
-                                >
-                                    <option value="">Seleziona studente</option>
-                                    {normalizedStudents.map((student) => (
-                                        <option key={student.id} value={student.id}>
-                                            {student.name} - {student.className}
-                                        </option>
-                                    ))}
-                                </select>
+                                    placeholder="Cerca per nome, classe o email"
+                                    value={studentSearchQuery}
+                                    onChange={handleStudentSearchChange}
+                                    autoComplete="off"
+                                />
+                                <p className="mt-2 text-xs text-slate-500">
+                                    Scrivi per cercare, poi clicca il risultato corretto.
+                                </p>
+                                {shouldShowStudentResults && (
+                                    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                        {filteredStudents.length === 0 && (
+                                            <div className="px-4 py-3 text-xs text-slate-500">
+                                                Nessuno studente trovato.
+                                            </div>
+                                        )}
+                                        {filteredStudents.map((student) => (
+                                            <button
+                                                key={student.id}
+                                                type="button"
+                                                className="flex w-full items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left transition hover:bg-slate-50 last:border-b-0"
+                                                onClick={() => handleStudentSelect(student)}
+                                            >
+                                                <span className="min-w-0">
+                                                    <span className="block truncate text-sm font-semibold text-slate-800">
+                                                        {student.name}
+                                                    </span>
+                                                    <span className="block truncate text-xs text-slate-500">
+                                                        {student.className} · {student.email || 'Nessuna email'}
+                                                    </span>
+                                                </span>
+                                                <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                                                    Seleziona
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {selectedStudent && (
+                                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                                        <div className="min-w-0">
+                                            <p className="font-semibold">Studente selezionato</p>
+                                            <p className="truncate text-xs text-emerald-800">
+                                                {selectedStudent.name} · {selectedStudent.className}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className="rounded-lg border border-emerald-300 px-3 py-1 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
+                                            onClick={clearSelectedStudent}
+                                        >
+                                            Cambia
+                                        </button>
+                                    </div>
+                                )}
                                 {errors.student_id && (
                                     <p className="mt-1 text-xs text-rose-500">
                                         {errors.student_id}
@@ -599,7 +695,9 @@ export default function LaboratoryManagerLeaveCreate({
                                     {selectedStudent.email || '-'}
                                 </p>
                                 <p>
-                                    <span className="font-semibold text-slate-800">Ore su 40 usate:</span>{' '}
+                                    <span className="font-semibold text-slate-800">
+                                        {hoursOnLimitLabel(maxAnnualHours)} usate:
+                                    </span>{' '}
                                     {selectedStudent.hoursUsedOn40} / {maxAnnualHours}
                                 </p>
                                 <p>
@@ -618,4 +716,3 @@ export default function LaboratoryManagerLeaveCreate({
         </AuthenticatedLayout>
     );
 }
-

@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { buildAnnualHoursLimitLabels } from '@/annualHoursLimit';
 import { Head, useForm } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 const ACTION_OPTIONS = [
     { value: 'none', label: 'Nessuna azione' },
@@ -37,6 +38,7 @@ const emptyRule = () => ({
 const RECOMMENDED_INTERACTION_RETENTION_DAYS = 180;
 const RECOMMENDED_ERROR_RETENTION_DAYS = 365;
 const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+const SEMESTER_BOUNDARY_REFERENCE_YEAR = 2000;
 const MONTH_LABELS = [
     'Gennaio',
     'Febbraio',
@@ -82,6 +84,98 @@ const parseSchoolYear = (schoolYear) => {
     };
 };
 
+const buildSemesterBoundaryInputValue = (day, month) => {
+    const normalizedMonth = Math.min(Math.max(Number(month) || 1, 1), 12);
+    const maxDay = new Date(
+        SEMESTER_BOUNDARY_REFERENCE_YEAR,
+        normalizedMonth,
+        0
+    ).getDate();
+    const normalizedDay = Math.min(Math.max(Number(day) || 1, 1), maxDay);
+
+    return `${SEMESTER_BOUNDARY_REFERENCE_YEAR}-${String(normalizedMonth).padStart(2, '0')}-${String(normalizedDay).padStart(2, '0')}`;
+};
+
+const parseSemesterBoundaryInputValue = (value) => {
+    const normalized = normalizeHolidayDate(value);
+    if (!normalized) {
+        return null;
+    }
+
+    const [, month, day] = normalized.split('-').map(Number);
+
+    return { day, month };
+};
+
+const fieldClass =
+    'h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm transition focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-100';
+const selectClass = `${fieldClass} pr-8`;
+
+function SectionPanel({ id, title, description, meta = null, children }) {
+    return (
+        <section
+            id={id}
+            className="rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
+                <div>
+                    <h2 className="text-base font-semibold text-slate-950">
+                        {title}
+                    </h2>
+                    {description && (
+                        <p className="mt-1 max-w-3xl text-sm text-slate-500">
+                            {description}
+                        </p>
+                    )}
+                </div>
+                {meta}
+            </div>
+            <div className="px-5 py-5 sm:px-6">{children}</div>
+        </section>
+    );
+}
+
+function Field({ label, hint = null, children, className = '' }) {
+    return (
+        <label className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {label}
+            </span>
+            {children}
+            {hint && <span className="text-xs text-slate-500">{hint}</span>}
+        </label>
+    );
+}
+
+function SettingGroup({ title, children, action = null }) {
+    return (
+        <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+                {action}
+            </div>
+            {children}
+        </div>
+    );
+}
+
+function SummaryPill({ label, value, tone = 'slate' }) {
+    const tones = {
+        slate: 'bg-slate-100 text-slate-700',
+        sky: 'bg-sky-100 text-sky-700',
+        emerald: 'bg-emerald-100 text-emerald-700',
+        amber: 'bg-amber-100 text-amber-700',
+    };
+
+    return (
+        <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone] ?? tones.slate}`}
+        >
+            {label}: {value}
+        </span>
+    );
+}
+
 export default function Settings({ settings, retentionAdvice = null }) {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [editingHolidayId, setEditingHolidayId] = useState(null);
@@ -105,6 +199,8 @@ export default function Settings({ settings, retentionAdvice = null }) {
                 settings.absence.medical_certificate_max_days,
             absence_countdown_days:
                 settings.absence.absence_countdown_days,
+            pre_expiry_warning_percent:
+                settings.absence.pre_expiry_warning_percent ?? 80,
             leave_request_notice_working_hours:
                 settings.absence.leave_request_notice_working_hours ?? 24,
         },
@@ -130,6 +226,12 @@ export default function Settings({ settings, retentionAdvice = null }) {
             deadline_active: Boolean(settings?.delay?.deadline_active ?? false),
             deadline_business_days:
                 settings?.delay?.deadline_business_days ?? 5,
+            first_semester_end_day:
+                settings?.delay?.first_semester_end_day ?? 26,
+            first_semester_end_month:
+                settings?.delay?.first_semester_end_month ?? 1,
+            pre_expiry_warning_percent:
+                settings?.delay?.pre_expiry_warning_percent ?? 80,
         },
         logs: {
             interaction_retention_days:
@@ -250,11 +352,17 @@ export default function Settings({ settings, retentionAdvice = null }) {
                 }
 
                 let monthHolidayCount = 0;
+                const holidayItems = [];
                 for (let day = 1; day <= daysInMonth; day += 1) {
                     const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const holiday = holidaysByDate.get(dateKey) ?? null;
                     if (holiday) {
                         monthHolidayCount += 1;
+                        holidayItems.push({
+                            day,
+                            holiday,
+                            dateKey,
+                        });
                     }
                     cells.push({
                         kind: holiday ? 'holiday' : 'day',
@@ -278,6 +386,7 @@ export default function Settings({ settings, retentionAdvice = null }) {
                     month,
                     label: `${MONTH_LABELS[month - 1]} ${year}`,
                     holidayCount: monthHolidayCount,
+                    holidayItems,
                     cells,
                 };
             });
@@ -297,6 +406,9 @@ export default function Settings({ settings, retentionAdvice = null }) {
         }
         return holidays.find((holiday) => holiday.id === selectedHolidayId) ?? null;
     }, [holidays, selectedHolidayId]);
+    const annualHoursLimit = buildAnnualHoursLimitLabels(
+        data.absence.max_annual_hours
+    );
 
     const submitSettings = (event) => {
         event.preventDefault();
@@ -339,6 +451,19 @@ export default function Settings({ settings, retentionAdvice = null }) {
 
     const updateDelay = (field, value) => {
         setData('delay', { ...data.delay, [field]: value });
+    };
+
+    const updateDelaySemesterBoundary = (value) => {
+        const nextBoundary = parseSemesterBoundaryInputValue(value);
+        if (!nextBoundary) {
+            return;
+        }
+
+        setData('delay', {
+            ...data.delay,
+            first_semester_end_day: nextBoundary.day,
+            first_semester_end_month: nextBoundary.month,
+        });
     };
 
     const updateLogs = (field, value) => {
@@ -485,294 +610,385 @@ export default function Settings({ settings, retentionAdvice = null }) {
         <AuthenticatedLayout header="Configurazione">
             <Head title="Configurazione" />
 
-            <form onSubmit={submitSettings} className="space-y-6">
-                <section
+            <form onSubmit={submitSettings} className="space-y-5 pb-24">
+                <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h1 className="text-xl font-semibold text-slate-950">
+                                Configurazione
+                            </h1>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Regole operative, calendario, sicurezza e retention.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <SectionPanel
                     id="config-absenze"
-                    className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7"
+                    title="Assenze e congedi"
+                    description="Soglie ore, certificati, firme e motivazioni."
+                    meta={
+                        <div className="flex flex-wrap gap-2">
+                            <SummaryPill
+                                label="Limite"
+                                value={annualHoursLimit.limit}
+                                tone="sky"
+                            />
+                            <SummaryPill
+                                label="Avviso"
+                                value={`${data.absence.warning_threshold_hours} ore`}
+                                tone="amber"
+                            />
+                        </div>
+                    }
                 >
-                    <h2 className="text-lg font-semibold text-slate-900">
-                        Regole assenze
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                        Parametri principali per il calcolo delle ore.
-                    </p>
-                    <p className="text-xs text-slate-500">
-                        Le soglie sono usate solo per segnalazioni e verifiche.
-                    </p>
-                    <div className="mt-4 space-y-4">
-                        <div className="space-y-3 text-sm text-slate-600">
-                            <label className="flex flex-col gap-2">
-                                Numero massimo di ore annuali disponibili
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="1"
-                                    value={data.absence.max_annual_hours}
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'max_annual_hours',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Soglia di ore per segnalazione superamento imminente
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="0"
-                                    value={data.absence.warning_threshold_hours}
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'warning_threshold_hours',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Email vicedirettore (avviso congedi oltre limite ore)
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="email"
-                                    value={data.absence.vice_director_email}
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'vice_director_email',
-                                            event.target.value
-                                        )
-                                    }
-                                    placeholder="vicedirettore@samt.ch"
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Firma tutore obbligatoria
-                                <select
-                                    className="rounded-lg border border-slate-200 px-3 py-2 pr-8 text-sm"
-                                    value={
-                                        data.absence.guardian_signature_required
-                                            ? 'yes'
-                                            : 'no'
-                                    }
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'guardian_signature_required',
-                                            event.target.value === 'yes'
-                                        )
-                                    }
-                                >
-                                    <option value="yes">Si</option>
-                                    <option value="no">No</option>
-                                </select>
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Numero di giorni per la consegna del certificato medico
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="0"
-                                    value={data.absence.medical_certificate_days}
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'medical_certificate_days',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Numero massimo di giorni per certificato medico
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="0"
-                                    value={data.absence.medical_certificate_max_days}
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'medical_certificate_max_days',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Numero di giorni lavorativi di countdown per assenza
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="0"
-                                    value={data.absence.absence_countdown_days}
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'absence_countdown_days',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Ore lavorative minime anticipo richiesta congedo
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="0"
-                                    max="240"
-                                    value={data.absence.leave_request_notice_working_hours}
-                                    onChange={(event) =>
-                                        updateAbsence(
-                                            'leave_request_notice_working_hours',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                <p className="text-sm font-semibold text-slate-700">
-                                    Motivazioni predefinite
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                    Legenda: Conta = entra nelle 40 ore, Esclusa =
-                                    non entra nelle 40 ore.
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                    Caso particolare = sui congedi richiede consenso
-                                    direzione prima dell invio.
-                                </p>
-                                {data.reasons.map((reason, index) => (
-                                    <article
-                                        key={`reason-${index}`}
-                                        className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5"
+                    <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.35fr)]">
+                        <div className="space-y-4">
+                            <SettingGroup title="Ore e notifiche">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <Field label="Ore annuali">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="1"
+                                            value={data.absence.max_annual_hours}
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'max_annual_hours',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field label="Soglia avviso">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="0"
+                                            value={data.absence.warning_threshold_hours}
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'warning_threshold_hours',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="Email vicedirettore"
+                                        className="sm:col-span-2"
                                     >
-                                        <div className="grid gap-2 md:grid-cols-[minmax(0,1.5fr)_140px_auto_auto]">
-                                            <input
-                                                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                                value={reason.name}
-                                                onChange={(event) =>
-                                                    updateReason(
-                                                        index,
-                                                        'name',
-                                                        event.target.value
-                                                    )
-                                                }
-                                                placeholder="Motivazione"
-                                            />
-                                            <select
-                                                className="rounded-lg border border-slate-200 px-3 py-2 pr-8 text-sm"
-                                                value={
-                                                    reason.counts_40_hours
-                                                        ? 'in'
-                                                        : 'out'
-                                                }
-                                                onChange={(event) =>
-                                                    updateReason(
-                                                        index,
-                                                        'counts_40_hours',
-                                                        event.target.value === 'in'
-                                                    )
-                                                }
-                                            >
-                                                <option value="in">Conta</option>
-                                                <option value="out">Esclusa</option>
-                                            </select>
-                                            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={Boolean(
-                                                        reason.requires_management_consent
-                                                    )}
-                                                    onChange={(event) =>
-                                                        updateReason(
-                                                            index,
-                                                            'requires_management_consent',
-                                                            event.target.checked
-                                                        )
-                                                    }
-                                                />
+                                        <input
+                                            className={fieldClass}
+                                            type="email"
+                                            value={data.absence.vice_director_email}
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'vice_director_email',
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder="vicedirettore@samt.ch"
+                                        />
+                                    </Field>
+                                </div>
+                            </SettingGroup>
+
+                            <SettingGroup title="Firme e certificati">
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <Field label="Firma tutore">
+                                        <select
+                                            className={selectClass}
+                                            value={
+                                                data.absence.guardian_signature_required
+                                                    ? 'yes'
+                                                    : 'no'
+                                            }
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'guardian_signature_required',
+                                                    event.target.value === 'yes'
+                                                )
+                                            }
+                                        >
+                                            <option value="yes">Si</option>
+                                            <option value="no">No</option>
+                                        </select>
+                                    </Field>
+                                    <Field label="Consegna certificato">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="0"
+                                            value={data.absence.medical_certificate_days}
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'medical_certificate_days',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field label="Durata max certificato">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="0"
+                                            value={data.absence.medical_certificate_max_days}
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'medical_certificate_max_days',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field label="Countdown assenza">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="0"
+                                            value={data.absence.absence_countdown_days}
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'absence_countdown_days',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field label="Avviso scadenza %">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={data.absence.pre_expiry_warning_percent}
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'pre_expiry_warning_percent',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field label="Preavviso congedo">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="0"
+                                            max="240"
+                                            value={
+                                                data.absence.leave_request_notice_working_hours
+                                            }
+                                            onChange={(event) =>
+                                                updateAbsence(
+                                                    'leave_request_notice_working_hours',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                </div>
+                            </SettingGroup>
+                        </div>
+
+                        <SettingGroup
+                            title="Motivazioni predefinite"
+                            action={
+                                <button
+                                    type="button"
+                                    className="btn-soft-neutral"
+                                    onClick={addReason}
+                                >
+                                    Aggiungi
+                                </button>
+                            }
+                        >
+                            <div className="mb-3 flex flex-wrap gap-2">
+                                <SummaryPill
+                                    label="Conta"
+                                    value={annualHoursLimit.limit}
+                                    tone="emerald"
+                                />
+                                <SummaryPill
+                                    label="Esclusa"
+                                    value="fuori limite"
+                                    tone="slate"
+                                />
+                                <SummaryPill
+                                    label="Speciale"
+                                    value="consenso direzione"
+                                    tone="amber"
+                                />
+                            </div>
+                            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                                <table className="w-full min-w-[820px] text-sm">
+                                    <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left">
+                                                Motivazione
+                                            </th>
+                                            <th className="w-32 px-3 py-2 text-left">
+                                                Limite ore
+                                            </th>
+                                            <th className="w-32 px-3 py-2 text-left">
                                                 Speciale
-                                            </label>
-                                            <button
-                                                type="button"
-                                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
-                                                onClick={() => removeReason(index)}
-                                            >
-                                                Rimuovi
-                                            </button>
-                                        </div>
-                                        {Boolean(reason.requires_management_consent) && (
-                                            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
-                                                <label className="flex items-center gap-2 text-xs text-slate-700">
+                                            </th>
+                                            <th className="w-40 px-3 py-2 text-left">
+                                                Documento
+                                            </th>
+                                            <th className="w-24 px-3 py-2 text-right">
+                                                Azioni
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {data.reasons.map((reason, index) => (
+                                            <Fragment key={`reason-${index}`}>
+                                            <tr>
+                                                <td className="px-3 py-2 align-top">
                                                     <input
-                                                        type="checkbox"
-                                                        checked={Boolean(
-                                                            reason.requires_document_on_leave_creation
-                                                        )}
+                                                        className={`${fieldClass} w-full`}
+                                                        value={reason.name}
                                                         onChange={(event) =>
                                                             updateReason(
                                                                 index,
-                                                                'requires_document_on_leave_creation',
-                                                                event.target.checked
-                                                            )
-                                                        }
-                                                    />
-                                                    Richiedi documento subito nel congedo
-                                                </label>
-                                                <label className="flex flex-col gap-1 text-xs text-slate-700">
-                                                    Commento/nota per allievo (max 2000)
-                                                    <textarea
-                                                        rows="5"
-                                                        className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700"
-                                                        value={reason.management_consent_note ?? ''}
-                                                        onChange={(event) =>
-                                                            updateReason(
-                                                                index,
-                                                                'management_consent_note',
+                                                                'name',
                                                                 event.target.value
                                                             )
                                                         }
-                                                        maxLength={2000}
-                                                        placeholder="Es: Porta il modulo firmato dalla direzione."
+                                                        placeholder="Motivazione"
                                                     />
-                                                </label>
-                                            </div>
-                                        )}
-                                    </article>
-                                ))}
-                                <button
-                                    type="button"
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600"
-                                    onClick={addReason}
-                                >
-                                    Aggiungi motivazione
-                                </button>
+                                                </td>
+                                                <td className="px-3 py-2 align-top">
+                                                    <select
+                                                        className={`${selectClass} w-full`}
+                                                        value={
+                                                            reason.counts_40_hours
+                                                                ? 'in'
+                                                                : 'out'
+                                                        }
+                                                        onChange={(event) =>
+                                                            updateReason(
+                                                                index,
+                                                                'counts_40_hours',
+                                                                event.target.value === 'in'
+                                                            )
+                                                        }
+                                                    >
+                                                        <option value="in">Conta</option>
+                                                        <option value="out">
+                                                            Esclusa
+                                                        </option>
+                                                    </select>
+                                                </td>
+                                                <td className="px-3 py-2 text-center align-top">
+                                                    <label className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white">
+                                                        <input
+                                                            type="checkbox"
+                                                            aria-label="Motivazione speciale"
+                                                            checked={Boolean(
+                                                                reason.requires_management_consent
+                                                            )}
+                                                            onChange={(event) =>
+                                                                updateReason(
+                                                                    index,
+                                                                    'requires_management_consent',
+                                                                    event.target.checked
+                                                                )
+                                                            }
+                                                        />
+                                                    </label>
+                                                </td>
+                                                <td className="px-3 py-2 text-center align-top">
+                                                    {Boolean(reason.requires_management_consent) && (
+                                                        <label className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white">
+                                                            <input
+                                                                type="checkbox"
+                                                                aria-label="Richiedi documento subito"
+                                                                checked={Boolean(
+                                                                    reason.requires_document_on_leave_creation
+                                                                )}
+                                                                onChange={(event) =>
+                                                                    updateReason(
+                                                                        index,
+                                                                        'requires_document_on_leave_creation',
+                                                                        event.target.checked
+                                                                    )
+                                                                }
+                                                            />
+                                                        </label>
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2 text-right align-top">
+                                                    <button
+                                                        type="button"
+                                                        className="btn-soft-danger"
+                                                        onClick={() => removeReason(index)}
+                                                    >
+                                                        Rimuovi
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            {Boolean(reason.requires_management_consent) && (
+                                                <tr className="bg-amber-50/60">
+                                                    <td colSpan={5} className="px-3 pb-3">
+                                                        <textarea
+                                                            rows="3"
+                                                            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                                                            value={
+                                                                reason.management_consent_note
+                                                                ?? ''
+                                                            }
+                                                            onChange={(event) =>
+                                                                updateReason(
+                                                                    index,
+                                                                    'management_consent_note',
+                                                                    event.target.value
+                                                                )
+                                                            }
+                                                            maxLength={2000}
+                                                            placeholder="Nota per allievo"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            </Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        </div>
+                        </SettingGroup>
                     </div>
-                </section>
+                </SectionPanel>
 
-                <section
+                <SectionPanel
                     id="config-vacanze"
-                    className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7"
+                    title="Calendario scolastico"
+                    description="Vacanze importate da PDF e date manuali."
+                    meta={
+                        <div className="flex flex-wrap gap-2">
+                            <SummaryPill
+                                label="Date"
+                                value={holidays.length}
+                                tone="emerald"
+                            />
+                            <SummaryPill
+                                label="Anni"
+                                value={holidayCalendarByYear.length}
+                                tone="sky"
+                            />
+                        </div>
+                    }
                 >
-                    <h2 className="text-lg font-semibold text-slate-900">
-                        Vacanze scolastiche
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                        Import da PDF calendario ufficiale e gestione manuale delle date.
-                    </p>
-                    <p className="text-xs text-slate-500">
-                        Queste date vengono escluse dai calcoli di giorni/ore lavorative per assenze e congedi.
-                    </p>
-
-                    <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <p className="text-sm font-semibold text-slate-700">
-                                Importa calendario PDF
-                            </p>
+                    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.2fr_0.8fr]">
+                        <SettingGroup title="Importa calendario PDF">
                             <input
                                 type="file"
                                 accept=".pdf,application/pdf"
-                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                className={`${fieldClass} w-full pt-2`}
                                 onChange={(event) =>
                                     holidayImportForm.setData(
                                         'calendar_pdf',
@@ -787,7 +1003,7 @@ export default function Settings({ settings, retentionAdvice = null }) {
                             )}
                             <button
                                 type="button"
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                                className="btn-soft-neutral mt-3"
                                 onClick={submitHolidayImport}
                                 disabled={holidayImportForm.processing}
                             >
@@ -795,17 +1011,14 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                     ? 'Import in corso...'
                                     : 'Importa e aggiorna vacanze'}
                             </button>
-                        </div>
+                        </SettingGroup>
 
-                        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <p className="text-sm font-semibold text-slate-700">
-                                Aggiungi data manuale
-                            </p>
-                            <label className="flex flex-col gap-2 text-xs text-slate-600">
-                                Data vacanza
+                        <SettingGroup title="Aggiungi data manuale">
+                            <div className="grid gap-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto] xl:grid-cols-1 2xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto]">
+                                <Field label="Data">
                                 <input
                                     type="date"
-                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                    className={fieldClass}
                                     value={holidayCreateForm.data.holiday_date}
                                     onChange={(event) =>
                                         holidayCreateForm.setData(
@@ -814,41 +1027,70 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                         )
                                     }
                                 />
-                            </label>
-                            <label className="flex flex-col gap-2 text-xs text-slate-600">
-                                Descrizione (facoltativa)
+                                </Field>
+                                <Field label="Descrizione">
                                 <input
                                     type="text"
                                     maxLength={255}
-                                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                                    className={fieldClass}
                                     value={holidayCreateForm.data.label}
                                     onChange={(event) =>
                                         holidayCreateForm.setData('label', event.target.value)
                                     }
                                     placeholder="Es. Ponte, festivita cantonale..."
                                 />
-                            </label>
+                                </Field>
+                                <div className="flex items-end">
+                                    <button
+                                        type="button"
+                                        className="btn-soft-neutral h-10"
+                                        onClick={submitHolidayCreate}
+                                        disabled={holidayCreateForm.processing}
+                                    >
+                                        {holidayCreateForm.processing ? 'Salvo...' : 'Aggiungi'}
+                                    </button>
+                                </div>
+                            </div>
                             {(holidayCreateForm.errors.holiday_date || holidayCreateForm.errors.label) && (
-                                <p className="text-xs text-rose-600">
+                                <p className="mt-2 text-xs text-rose-600">
                                     {holidayCreateForm.errors.holiday_date
                                         || holidayCreateForm.errors.label}
                                 </p>
                             )}
-                            <button
-                                type="button"
-                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
-                                onClick={submitHolidayCreate}
-                                disabled={holidayCreateForm.processing}
+                        </SettingGroup>
+
+                        <SettingGroup title="Semestri">
+                            <Field
+                                label="Fine primo semestre"
+                                hint="Aggiornato automaticamente importando il calendario PDF."
                             >
-                                {holidayCreateForm.processing ? 'Salvataggio...' : 'Aggiungi data'}
-                            </button>
-                        </div>
+                                <input
+                                    className={fieldClass}
+                                    type="date"
+                                    value={buildSemesterBoundaryInputValue(
+                                        data.delay.first_semester_end_day,
+                                        data.delay.first_semester_end_month
+                                    )}
+                                    onChange={(event) =>
+                                        updateDelaySemesterBoundary(
+                                            event.target.value
+                                        )
+                                    }
+                                />
+                            </Field>
+                            <p className="mt-3 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-700">
+                                Il secondo semestre parte dal giorno successivo.
+                            </p>
+                        </SettingGroup>
                     </div>
 
                     <div className="mt-4 space-y-3">
-                        <p className="text-sm font-semibold text-slate-700">
-                            Date registrate ({holidays.length})
-                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-slate-800">
+                                Date registrate
+                            </p>
+                            <SummaryPill label="Totale" value={holidays.length} />
+                        </div>
                         {holidays.length === 0 && (
                             <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 text-sm text-slate-500">
                                 Nessuna vacanza registrata.
@@ -875,71 +1117,52 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                         </span>
                                     </div>
                                 </div>
-                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                                     {group.months.map((month) => (
                                         <article
                                             key={month.id}
-                                            className="rounded-xl border border-slate-200 bg-white p-2.5"
+                                            className="min-h-[96px] rounded-xl border border-slate-200 bg-white p-3"
                                         >
-                                            <div className="mb-2 flex items-center justify-between gap-2">
-                                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-600">
                                                     {month.label}
                                                 </p>
                                                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
                                                     {month.holidayCount}
                                                 </span>
                                             </div>
-                                            <div className="grid grid-cols-7 gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                                {WEEKDAY_LABELS.map((label) => (
-                                                    <span
-                                                        key={`${month.id}-${label}`}
-                                                        className="text-center"
-                                                    >
-                                                        {label}
+                                            <div className="mt-3 flex flex-wrap gap-1.5">
+                                                {month.holidayItems.length === 0 ? (
+                                                    <span className="text-xs text-slate-400">
+                                                        Nessuna data
                                                     </span>
-                                                ))}
-                                            </div>
-                                            <div className="mt-1 grid grid-cols-7 gap-1">
-                                                {month.cells.map((cell) => {
-                                                    if (cell.kind === 'placeholder') {
-                                                        return (
-                                                            <span
-                                                                key={cell.id}
-                                                                className="h-7 rounded-md"
-                                                            />
-                                                        );
-                                                    }
-                                                    if (cell.kind === 'holiday' && cell.holiday) {
+                                                ) : (
+                                                    month.holidayItems.map((item) => {
                                                         const isSelected =
-                                                            selectedHolidayId === cell.holiday.id;
+                                                            selectedHolidayId
+                                                            === item.holiday.id;
+
                                                         return (
                                                             <button
-                                                                key={cell.id}
+                                                                key={item.dateKey}
                                                                 type="button"
-                                                                className={`h-7 rounded-md text-xs font-semibold transition ${isSelected
+                                                                className={`h-7 min-w-7 rounded-md px-2 text-xs font-semibold transition ${isSelected
                                                                     ? 'bg-emerald-700 text-white ring-2 ring-emerald-300'
                                                                     : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
                                                                 onClick={() =>
-                                                                    setSelectedHolidayId(cell.holiday.id)
+                                                                    setSelectedHolidayId(
+                                                                        item.holiday.id
+                                                                    )
                                                                 }
                                                                 title={`Vacanza ${formatHolidayDate(
-                                                                    cell.holiday.holiday_date
+                                                                    item.holiday.holiday_date
                                                                 )}`}
                                                             >
-                                                                {cell.day}
+                                                                {item.day}
                                                             </button>
                                                         );
-                                                    }
-
-                                                    return (
-                                                        <span
-                                                            key={cell.id}
-                                                            className="h-7 rounded-md bg-slate-100/70 text-center text-xs leading-7 text-slate-500"
-                                                        >
-                                                            {cell.day}
-                                                        </span>
-                                                    );
-                                                })}
+                                                    })
+                                                )}
                                             </div>
                                         </article>
                                     ))}
@@ -1164,111 +1387,151 @@ export default function Settings({ settings, retentionAdvice = null }) {
                             </div>
                         </details>
                     </div>
-                </section>
+                </SectionPanel>
 
-                <section
+                <SectionPanel
                     id="config-ritardi"
-                    className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7"
+                    title="Ritardi"
+                    description="Conversione in assenza, firme e azioni automatiche."
+                    meta={
+                        <div className="flex flex-wrap gap-2">
+                            <SummaryPill
+                                label="Soglia"
+                                value={`${data.delay.minutes_threshold} min`}
+                                tone="amber"
+                            />
+                            <SummaryPill
+                                label="Regole"
+                                value={data.delay_rules.length}
+                                tone="sky"
+                            />
+                        </div>
+                    }
                 >
-                    <h2 className="text-lg font-semibold text-slate-900">
-                        Regole ritardi
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                        Definisci la soglia di conversione in assenza e le azioni automatiche dei ritardi.
-                    </p>
-                    <p className="text-xs text-slate-500">
-                        Se il ritardo supera la soglia, viene aggiunta automaticamente 1 ora di assenza.
-                    </p>
-                    <div className="mt-4 space-y-4">
-                        <div className="space-y-3 text-sm text-slate-600">
-                            <label className="flex flex-col gap-2">
-                                Soglia minuti ritardo per aggiungere 1 ora di assenza
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="0"
-                                    value={data.delay.minutes_threshold}
-                                    onChange={(event) =>
-                                        updateDelay(
-                                            'minutes_threshold',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Firma tutore obbligatoria sui ritardi
-                                <select
-                                    className="rounded-lg border border-slate-200 px-3 py-2 pr-8 text-sm"
-                                    value={
-                                        data.delay.guardian_signature_required
-                                            ? 'yes'
-                                            : 'no'
-                                    }
-                                    onChange={(event) =>
-                                        updateDelay(
-                                            'guardian_signature_required',
-                                            event.target.value === 'yes'
-                                        )
-                                    }
+                    <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+                        <div className="space-y-4">
+                            <SettingGroup title="Regole base">
+                                <div className="grid gap-3">
+                                    <Field label="Minuti per 1 ora assenza">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="0"
+                                            value={data.delay.minutes_threshold}
+                                            onChange={(event) =>
+                                                updateDelay(
+                                                    'minutes_threshold',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field label="Firma tutore">
+                                        <select
+                                            className={selectClass}
+                                            value={
+                                                data.delay.guardian_signature_required
+                                                    ? 'yes'
+                                                    : 'no'
+                                            }
+                                            onChange={(event) =>
+                                                updateDelay(
+                                                    'guardian_signature_required',
+                                                    event.target.value === 'yes'
+                                                )
+                                            }
+                                        >
+                                            <option value="yes">Si</option>
+                                            <option value="no">No</option>
+                                        </select>
+                                    </Field>
+                                </div>
+                            </SettingGroup>
+
+                            <SettingGroup title="Scadenze">
+                                <div className="grid gap-3">
+                                    <Field label="Scadenza ritardi">
+                                        <select
+                                            className={selectClass}
+                                            value={data.delay.deadline_active ? 'yes' : 'no'}
+                                            onChange={(event) =>
+                                                updateDelay(
+                                                    'deadline_active',
+                                                    event.target.value === 'yes'
+                                                )
+                                            }
+                                        >
+                                            <option value="yes">Si</option>
+                                            <option value="no">No</option>
+                                        </select>
+                                    </Field>
+                                    <Field label="Giorni limite">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="0"
+                                            max="30"
+                                            value={data.delay.deadline_business_days}
+                                            onChange={(event) =>
+                                                updateDelay(
+                                                    'deadline_business_days',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field label="Avviso scadenza %">
+                                        <input
+                                            className={fieldClass}
+                                            type="number"
+                                            min="1"
+                                            max="100"
+                                            value={data.delay.pre_expiry_warning_percent}
+                                            onChange={(event) =>
+                                                updateDelay(
+                                                    'pre_expiry_warning_percent',
+                                                    Number(event.target.value)
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                </div>
+                            </SettingGroup>
+                        </div>
+
+                        <SettingGroup
+                            title="Soglie con azioni informative"
+                            action={
+                                <button
+                                    type="button"
+                                    className="btn-soft-neutral"
+                                    onClick={addRule}
                                 >
-                                    <option value="yes">Si</option>
-                                    <option value="no">No</option>
-                                </select>
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Attiva scadenza ritardi registrati
-                                <select
-                                    className="rounded-lg border border-slate-200 px-3 py-2 pr-8 text-sm"
-                                    value={data.delay.deadline_active ? 'yes' : 'no'}
-                                    onChange={(event) =>
-                                        updateDelay(
-                                            'deadline_active',
-                                            event.target.value === 'yes'
-                                        )
-                                    }
-                                >
-                                    <option value="yes">Si</option>
-                                    <option value="no">No</option>
-                                </select>
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Giorni lavorativi limite ritardo registrato
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="0"
-                                    max="30"
-                                    value={data.delay.deadline_business_days}
-                                    onChange={(event) =>
-                                        updateDelay(
-                                            'deadline_business_days',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                <p className="text-sm font-semibold text-slate-700">
-                                    Soglie di ritardi con azioni informative
-                                </p>
+                                    Aggiungi regola
+                                </button>
+                            }
+                        >
+                            <div className="space-y-2">
                                 {data.delay_rules.map((rule, ruleIndex) => (
                                     <details
                                         key={`rule-${ruleIndex}`}
-                                        className="rounded-xl border border-slate-200 p-3"
+                                        className="rounded-xl border border-slate-200 bg-white"
                                         open={ruleIndex === 0}
                                     >
-                                        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
-                                            Regola {ruleIndex + 1}: {rule.min_delays} -{' '}
-                                            {rule.max_delays === null ? 'oltre' : rule.max_delays}{' '}
-                                            ritardi
+                                        <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800">
+                                            <span>
+                                                Regola {ruleIndex + 1}: {rule.min_delays} -{' '}
+                                                {rule.max_delays === null
+                                                    ? 'oltre'
+                                                    : rule.max_delays}{' '}
+                                                ritardi
+                                            </span>
                                         </summary>
-                                        <div className="mt-3 space-y-3">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <label className="flex flex-col gap-1 text-xs text-slate-500">
-                                                    Ritardi da
+                                        <div className="space-y-3 border-t border-slate-100 p-4">
+                                            <div className="grid gap-3 md:grid-cols-[120px_140px_auto]">
+                                                <Field label="Da">
                                                     <input
-                                                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                                                        className={fieldClass}
                                                         type="number"
                                                         min="0"
                                                         value={rule.min_delays}
@@ -1280,11 +1543,10 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                                             )
                                                         }
                                                     />
-                                                </label>
-                                                <label className="flex flex-col gap-1 text-xs text-slate-500">
-                                                    Ritardi fino a
+                                                </Field>
+                                                <Field label="Fino a">
                                                     <input
-                                                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                                                        className={fieldClass}
                                                         type="number"
                                                         min="0"
                                                         value={
@@ -1301,25 +1563,28 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                                                     : Number(event.target.value)
                                                             )
                                                         }
-                                                        placeholder="(vuoto = oltre)"
+                                                        placeholder="oltre"
                                                     />
-                                                </label>
-                                                <button
-                                                    type="button"
-                                                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600"
-                                                    onClick={() => removeRule(ruleIndex)}
-                                                >
-                                                    Rimuovi regola
-                                                </button>
+                                                </Field>
+                                                <div className="flex items-end justify-end">
+                                                    <button
+                                                        type="button"
+                                                        className="btn-soft-danger h-10"
+                                                        onClick={() => removeRule(ruleIndex)}
+                                                    >
+                                                        Rimuovi regola
+                                                    </button>
+                                                </div>
                                             </div>
+
                                             <div className="space-y-2">
                                                 {rule.actions.map((action, actionIndex) => (
                                                     <div
                                                         key={`rule-${ruleIndex}-action-${actionIndex}`}
-                                                        className="flex flex-wrap items-center gap-2"
+                                                        className="grid gap-2 md:grid-cols-[minmax(240px,0.9fr)_minmax(0,1fr)_auto]"
                                                     >
                                                         <select
-                                                            className="rounded-lg border border-slate-200 px-3 py-2 pr-8 text-sm"
+                                                            className={selectClass}
                                                             value={action.type}
                                                             onChange={(event) =>
                                                                 updateAction(
@@ -1339,9 +1604,9 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                                                 </option>
                                                             ))}
                                                         </select>
-                                                        {action.type === 'conduct_penalty' && (
+                                                        {action.type === 'conduct_penalty' ? (
                                                             <input
-                                                                className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                                                className={fieldClass}
                                                                 value={action.detail ?? ''}
                                                                 onChange={(event) =>
                                                                     updateAction(
@@ -1353,10 +1618,12 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                                                 }
                                                                 placeholder="Testo penalita"
                                                             />
+                                                        ) : (
+                                                            <span className="hidden h-10 rounded-lg border border-dashed border-slate-200 bg-slate-50 md:block" />
                                                         )}
                                                         <button
                                                             type="button"
-                                                            className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600"
+                                                            className="btn-soft-neutral h-10"
                                                             onClick={() =>
                                                                 removeAction(
                                                                     ruleIndex,
@@ -1364,22 +1631,21 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                                                 )
                                                             }
                                                         >
-                                                            Rimuovi azione
+                                                            Rimuovi
                                                         </button>
                                                     </div>
                                                 ))}
                                                 <button
                                                     type="button"
-                                                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600"
+                                                    className="btn-soft-neutral"
                                                     onClick={() => addAction(ruleIndex)}
                                                 >
                                                     Aggiungi azione
                                                 </button>
                                             </div>
-                                            <label className="flex flex-col gap-2 text-xs text-slate-500">
-                                                Messaggio informativo
+                                            <Field label="Messaggio informativo">
                                                 <input
-                                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                                                    className={`${fieldClass} w-full`}
                                                     value={rule.info_message ?? ''}
                                                     onChange={(event) =>
                                                         updateRule(
@@ -1390,186 +1656,175 @@ export default function Settings({ settings, retentionAdvice = null }) {
                                                     }
                                                     placeholder="Messaggio opzionale"
                                                 />
-                                            </label>
+                                            </Field>
                                         </div>
                                     </details>
                                 ))}
-                                <button
-                                    type="button"
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600"
-                                    onClick={addRule}
-                                >
-                                    Aggiungi regola
-                                </button>
                             </div>
-                        </div>
+                        </SettingGroup>
                     </div>
-                </section>
+                </SectionPanel>
 
-                <section
+                <SectionPanel
                     id="config-sicurezza"
-                    className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7"
+                    title="Sistema"
+                    description="Retention log, limiti login e recupero password."
+                    meta={
+                        <SummaryPill
+                            label="Log"
+                            value={`${data.logs.interaction_retention_days}/${data.logs.error_retention_days} giorni`}
+                            tone="slate"
+                        />
+                    }
                 >
-                    <h2 className="text-lg font-semibold text-slate-900">
-                        Retention log
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                        Giorni di conservazione per interazioni ed errori.
-                    </p>
-                    <p className="text-xs text-slate-500">
-                        Pulizia automatica notturna.
-                    </p>
-                    <div className="mt-4 space-y-4">
-                        <div className="space-y-3 text-sm text-slate-600">
-                            <label className="flex flex-col gap-2">
-                                Giorni di conservazione log interazioni (INFO, consigliato {recommendedInteractionRetentionDays})
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="1"
-                                    max="3650"
-                                    value={data.logs.interaction_retention_days}
-                                    onChange={(event) =>
-                                        updateLogs(
-                                            'interaction_retention_days',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Giorni di conservazione log errori/avvisi (ERROR/WARNING, consigliato {recommendedErrorRetentionDays})
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="1"
-                                    max="3650"
-                                    value={data.logs.error_retention_days}
-                                    onChange={(event) =>
-                                        updateLogs(
-                                            'error_retention_days',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <hr className="border-slate-200" />
-                            <p className="text-sm font-semibold text-slate-700">
-                                Sicurezza login
-                            </p>
-                            <p className="text-xs text-slate-500">
-                                Override admin dei limiti login. Base da `env/config`, consentito solo in range sicuro.
-                            </p>
-                            <label className="flex flex-col gap-2">
-                                Tentativi massimi login (3-10)
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="3"
-                                    max="10"
-                                    value={data.login.max_attempts}
-                                    onChange={(event) =>
-                                        updateLogin(
-                                            'max_attempts',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Timeout blocco login in secondi (60-1800)
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="60"
-                                    max="1800"
-                                    value={data.login.decay_seconds}
-                                    onChange={(event) =>
-                                        updateLogin(
-                                            'decay_seconds',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <hr className="border-slate-200" />
-                            <p className="text-sm font-semibold text-slate-700">
-                                Sicurezza recupero password
-                            </p>
-                            <p className="text-xs text-slate-500">
-                                Throttle endpoint password dimenticata e reset password.
-                            </p>
-                            <label className="flex flex-col gap-2">
-                                Forgot password: tentativi massimi (3-20)
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="3"
-                                    max="20"
-                                    value={data.login.forgot_password_max_attempts}
-                                    onChange={(event) =>
-                                        updateLogin(
-                                            'forgot_password_max_attempts',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Forgot password: timeout blocco in secondi (60-1800)
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="60"
-                                    max="1800"
-                                    value={data.login.forgot_password_decay_seconds}
-                                    onChange={(event) =>
-                                        updateLogin(
-                                            'forgot_password_decay_seconds',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Reset password: tentativi massimi (3-20)
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="3"
-                                    max="20"
-                                    value={data.login.reset_password_max_attempts}
-                                    onChange={(event) =>
-                                        updateLogin(
-                                            'reset_password_max_attempts',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                            <label className="flex flex-col gap-2">
-                                Reset password: timeout blocco in secondi (60-1800)
-                                <input
-                                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                                    type="number"
-                                    min="60"
-                                    max="1800"
-                                    value={data.login.reset_password_decay_seconds}
-                                    onChange={(event) =>
-                                        updateLogin(
-                                            'reset_password_decay_seconds',
-                                            Number(event.target.value)
-                                        )
-                                    }
-                                />
-                            </label>
-                        </div>
+                    <div className="grid gap-4 xl:grid-cols-3">
+                        <SettingGroup title="Retention log">
+                            <div className="grid gap-3">
+                                <Field
+                                    label="Interazioni"
+                                    hint={`Consigliato ${recommendedInteractionRetentionDays}`}
+                                >
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="1"
+                                        max="3650"
+                                        value={data.logs.interaction_retention_days}
+                                        onChange={(event) =>
+                                            updateLogs(
+                                                'interaction_retention_days',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field
+                                    label="Errori e avvisi"
+                                    hint={`Consigliato ${recommendedErrorRetentionDays}`}
+                                >
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="1"
+                                        max="3650"
+                                        value={data.logs.error_retention_days}
+                                        onChange={(event) =>
+                                            updateLogs(
+                                                'error_retention_days',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                            </div>
+                        </SettingGroup>
+
+                        <SettingGroup title="Login">
+                            <div className="grid gap-3">
+                                <Field label="Tentativi massimi" hint="Range 3-10">
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="3"
+                                        max="10"
+                                        value={data.login.max_attempts}
+                                        onChange={(event) =>
+                                            updateLogin(
+                                                'max_attempts',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Timeout blocco" hint="Secondi, range 60-1800">
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="60"
+                                        max="1800"
+                                        value={data.login.decay_seconds}
+                                        onChange={(event) =>
+                                            updateLogin(
+                                                'decay_seconds',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                            </div>
+                        </SettingGroup>
+
+                        <SettingGroup title="Recupero password">
+                            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                                <Field label="Forgot: tentativi" hint="Range 3-20">
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="3"
+                                        max="20"
+                                        value={data.login.forgot_password_max_attempts}
+                                        onChange={(event) =>
+                                            updateLogin(
+                                                'forgot_password_max_attempts',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Forgot: timeout" hint="Secondi, 60-1800">
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="60"
+                                        max="1800"
+                                        value={data.login.forgot_password_decay_seconds}
+                                        onChange={(event) =>
+                                            updateLogin(
+                                                'forgot_password_decay_seconds',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Reset: tentativi" hint="Range 3-20">
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="3"
+                                        max="20"
+                                        value={data.login.reset_password_max_attempts}
+                                        onChange={(event) =>
+                                            updateLogin(
+                                                'reset_password_max_attempts',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field label="Reset: timeout" hint="Secondi, 60-1800">
+                                    <input
+                                        className={fieldClass}
+                                        type="number"
+                                        min="60"
+                                        max="1800"
+                                        value={data.login.reset_password_decay_seconds}
+                                        onChange={(event) =>
+                                            updateLogin(
+                                                'reset_password_decay_seconds',
+                                                Number(event.target.value)
+                                            )
+                                        }
+                                    />
+                                </Field>
+                            </div>
+                        </SettingGroup>
                     </div>
-                </section>
-                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                </SectionPanel>
+
+                <div className="sticky bottom-4 z-20 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <p className="text-sm text-slate-600">
-                            Salva tutte le modifiche in un unico passaggio.
+                            Salva tutte le modifiche
                         </p>
                         <button
                             type="submit"

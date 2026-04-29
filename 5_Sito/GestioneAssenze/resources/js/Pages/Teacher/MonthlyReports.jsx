@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import DashboardStatCard from '@/Components/DashboardStatCard';
 import { Head, Link } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 
@@ -7,6 +8,12 @@ const bucketOptions = [
     { value: 'missing', label: 'Mancanti' },
     { value: 'pending', label: 'Da approvare' },
     { value: 'completed', label: 'Completati' },
+];
+const statDecorations = [
+    { icon: 'docs', tone: 'sky' },
+    { icon: 'warning', tone: 'rose' },
+    { icon: 'clock', tone: 'amber' },
+    { icon: 'check', tone: 'emerald' },
 ];
 
 export default function TeacherMonthlyReports({ items = [], stats = {} }) {
@@ -43,10 +50,20 @@ export default function TeacherMonthlyReports({ items = [], stats = {} }) {
 
             <div className="space-y-6">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    <StatCard label="Totali" value={stats.total ?? 0} />
-                    <StatCard label="Mancanti" value={stats.missing ?? 0} />
-                    <StatCard label="Da approvare" value={stats.pending ?? 0} />
-                    <StatCard label="Completati" value={stats.completed ?? 0} />
+                    {[
+                        { label: 'Totali', value: stats.total ?? 0 },
+                        { label: 'Mancanti', value: stats.missing ?? 0 },
+                        { label: 'Da approvare', value: stats.pending ?? 0 },
+                        { label: 'Completati', value: stats.completed ?? 0 },
+                    ].map((stat, index) => (
+                        <DashboardStatCard
+                            key={stat.label}
+                            label={stat.label}
+                            value={stat.value}
+                            icon={statDecorations[index].icon}
+                            tone={statDecorations[index].tone}
+                        />
+                    ))}
                 </div>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -103,12 +120,7 @@ export default function TeacherMonthlyReports({ items = [], stats = {} }) {
                                 {filtered.map((item) => (
                                     <tr key={item.report_id} className="text-slate-600">
                                         <td className="py-3 text-center align-middle font-medium text-slate-900">
-                                            <Link
-                                                href={item.details_url}
-                                                className="underline decoration-dotted underline-offset-2 transition-colors hover:text-indigo-700 hover:decoration-indigo-500"
-                                            >
-                                                {item.code}
-                                            </Link>
+                                            {item.code}
                                         </td>
                                         <td className="py-3 text-center align-middle">
                                             {item.student_id ? (
@@ -136,35 +148,12 @@ export default function TeacherMonthlyReports({ items = [], stats = {} }) {
                                         </td>
                                         <td className="py-3 text-center align-middle">
                                             <div className="inline-flex flex-nowrap items-center justify-center gap-2 overflow-x-auto whitespace-nowrap pb-1 text-xs">
-                                                {item.can_resend_email && (
-                                                    <Link
-                                                        href={route(
-                                                            'teacher.monthly-reports.resend-email',
-                                                            item.report_id
-                                                        )}
-                                                        method="post"
-                                                        as="button"
-                                                        className="btn-soft-info h-8"
-                                                    >
-                                                        Reinvio email
-                                                    </Link>
-                                                )}
-                                                {item.can_approve && (
-                                                    <Link
-                                                        href={route(
-                                                            'teacher.monthly-reports.approve',
-                                                            item.report_id
-                                                        )}
-                                                        method="post"
-                                                        as="button"
-                                                        className="btn-soft-neutral h-8"
-                                                    >
-                                                        Approva
-                                                    </Link>
-                                                )}
-                                                {!item.can_resend_email && !item.can_approve && (
-                                                    <span className="text-slate-400">-</span>
-                                                )}
+                                                <Link
+                                                    href={item.details_url}
+                                                    className="btn-soft-primary h-8"
+                                                >
+                                                    Apri pratica
+                                                </Link>
                                             </div>
                                         </td>
                                     </tr>
@@ -175,14 +164,5 @@ export default function TeacherMonthlyReports({ items = [], stats = {} }) {
                 </section>
             </div>
         </AuthenticatedLayout>
-    );
-}
-
-function StatCard({ label, value }) {
-    return (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-slate-900">{value}</p>
-        </div>
     );
 }

@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\MonthlyReportMail;
+use App\Jobs\Mail\MonthlyReportMail;
 use App\Models\MonthlyReport;
 use App\Models\MonthlyReportEmailNotification;
 use App\Models\OperationLog;
@@ -111,7 +111,11 @@ class MonthlyReportService
                 $status = MonthlyReport::normalizeStatus($monthlyReport->status);
                 $isLockedStatus = in_array(
                     $status,
-                    [MonthlyReport::STATUS_APPROVED, MonthlyReport::STATUS_SIGNED_UPLOADED],
+                    [
+                        MonthlyReport::STATUS_APPROVED,
+                        MonthlyReport::STATUS_REJECTED,
+                        MonthlyReport::STATUS_SIGNED_UPLOADED,
+                    ],
                     true
                 );
                 $isSentWithoutChanges = $status === MonthlyReport::STATUS_SENT
@@ -367,6 +371,9 @@ class MonthlyReportService
         $report->status = MonthlyReport::STATUS_SIGNED_UPLOADED;
         $report->approved_at = null;
         $report->approved_by = null;
+        $report->rejected_at = null;
+        $report->rejected_by = null;
+        $report->rejection_comment = null;
         $report->save();
 
         OperationLog::record(
@@ -431,6 +438,9 @@ class MonthlyReportService
         $report->status = MonthlyReport::STATUS_APPROVED;
         $report->approved_at = now();
         $report->approved_by = $actor->id;
+        $report->rejected_at = null;
+        $report->rejected_by = null;
+        $report->rejection_comment = null;
         $report->save();
 
         OperationLog::record(
@@ -441,6 +451,39 @@ class MonthlyReportService
             [
                 'student_id' => $report->student_id,
                 'approved_at' => $report->approved_at?->toDateTimeString(),
+            ],
+            'INFO',
+            $request
+        );
+
+        return $report->fresh() ?? $report;
+    }
+
+    public function rejectReport(
+        MonthlyReport $report,
+        User $actor,
+        string $comment,
+        ?Request $request = null
+    ): MonthlyReport {
+        $normalizedComment = trim($comment);
+
+        $report->status = MonthlyReport::STATUS_REJECTED;
+        $report->approved_at = null;
+        $report->approved_by = null;
+        $report->rejected_at = now();
+        $report->rejected_by = $actor->id;
+        $report->rejection_comment = $normalizedComment;
+        $report->save();
+
+        OperationLog::record(
+            $actor,
+            'monthly_report.rejected',
+            'monthly_report',
+            $report->id,
+            [
+                'student_id' => $report->student_id,
+                'rejected_at' => $report->rejected_at?->toDateTimeString(),
+                'comment' => $normalizedComment,
             ],
             'INFO',
             $request

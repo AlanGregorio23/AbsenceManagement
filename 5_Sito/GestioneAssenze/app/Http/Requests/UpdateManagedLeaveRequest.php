@@ -15,6 +15,15 @@ class UpdateManagedLeaveRequest extends FormRequest
         return $user && $user->hasRole('laboratory_manager');
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('comment')) {
+            $this->merge([
+                'comment' => trim((string) $this->input('comment')),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -30,7 +39,7 @@ class UpdateManagedLeaveRequest extends FormRequest
                 'max:1000',
                 Rule::requiredIf(fn () => $this->boolean('count_hours') === false),
             ],
-            'comment' => ['nullable', 'string', 'max:1000'],
+            'comment' => ['required', 'string', 'max:1000'],
         ];
     }
 
@@ -38,6 +47,7 @@ class UpdateManagedLeaveRequest extends FormRequest
     {
         return [
             'count_hours_comment.required' => 'Commento obbligatorio quando il congedo non rientra nel '.AnnualHoursLimitLabels::limit().'.',
+            'comment.required' => 'Inserisci un commento obbligatorio per la modifica.',
         ];
     }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\AdultStudentGuardianInfoMail;
+use App\Jobs\Mail\AdultStudentGuardianInfoMail;
 use App\Models\OperationLog;
 use App\Models\User;
 use Illuminate\Http\Request;

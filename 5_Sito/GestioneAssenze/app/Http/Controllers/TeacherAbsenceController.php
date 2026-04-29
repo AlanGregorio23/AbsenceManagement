@@ -306,7 +306,9 @@ class TeacherAbsenceController extends BaseController
         $currentDeadline = $absence->medical_certificate_deadline
             ? Carbon::parse($absence->medical_certificate_deadline)->startOfDay()
             : null;
-        $effectiveDeadline = $currentDeadline && $currentDeadline->gt($newDeadline)
+        $effectiveDeadline = $absence->hasManualDeadlineExtension()
+            && $currentDeadline
+            && $currentDeadline->gt($newDeadline)
             ? $currentDeadline
             : $newDeadline;
         $hasValidCertificate = $absence->medicalCertificates()

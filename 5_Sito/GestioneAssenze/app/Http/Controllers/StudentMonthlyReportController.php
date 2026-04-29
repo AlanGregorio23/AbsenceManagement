@@ -198,6 +198,8 @@ class StudentMonthlyReportController extends BaseController
             'sent_at' => $report->last_sent_at?->format('d M Y H:i'),
             'signed_uploaded_at' => $report->signed_uploaded_at?->format('d M Y H:i'),
             'approved_at' => $report->approved_at?->format('d M Y H:i'),
+            'rejected_at' => $report->rejected_at?->format('d M Y H:i'),
+            'rejection_comment' => (string) ($report->rejection_comment ?? ''),
             'original_download_url' => filled($report->system_pdf_path)
                 ? route('student.monthly-reports.download', $report)
                 : null,
@@ -208,6 +210,7 @@ class StudentMonthlyReportController extends BaseController
                 $status,
                 [
                     MonthlyReport::STATUS_GENERATED,
+                    MonthlyReport::STATUS_REJECTED,
                     MonthlyReport::STATUS_SENT,
                     MonthlyReport::STATUS_SIGNED_UPLOADED,
                 ],

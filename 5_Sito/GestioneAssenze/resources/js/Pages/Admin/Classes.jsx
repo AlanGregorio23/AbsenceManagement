@@ -118,7 +118,6 @@ export default function Classes({
     pagination = null,
     filters = {},
     yearOptions = [],
-    teacherOptions = [],
     availableTeachers = [],
     availableStudents = [],
 }) {
@@ -180,7 +179,6 @@ export default function Classes({
                         'pagination',
                         'filters',
                         'yearOptions',
-                        'teacherOptions',
                         'availableTeachers',
                         'availableStudents',
                     ],
@@ -456,20 +454,12 @@ export default function Classes({
                     </label>
                     <label className="flex flex-col gap-2">
                         Docente
-                        <select
+                        <input
                             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                            placeholder="Es. Paolo Rossi"
                             value={teacherFilter}
-                            onChange={(event) =>
-                                setTeacherFilter(event.target.value)
-                            }
-                        >
-                            <option value="">Tutti</option>
-                            {teacherOptions.map((teacher) => (
-                                <option key={teacher.id} value={String(teacher.id)}>
-                                    {teacher.label}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(event) => setTeacherFilter(event.target.value)}
+                        />
                     </label>
                 </div>
 
@@ -483,6 +473,7 @@ export default function Classes({
                                 <th className="py-3 text-center">Docente</th>
                                 <th className="py-3 text-center">Studenti</th>
                                 <th className="py-3 text-center">Azioni</th>
+                                <th className="py-3 text-center">Dettagli</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -490,7 +481,7 @@ export default function Classes({
                                 <tr>
                                     <td
                                         className="py-6 text-center text-sm text-slate-400"
-                                        colSpan={6}
+                                        colSpan={7}
                                     >
                                         Nessuna classe trovata.
                                     </td>
@@ -506,36 +497,36 @@ export default function Classes({
                                     <td className="py-3 text-center">{row.docente}</td>
                                     <td className="py-3 text-center">{row.studenti}</td>
                                     <td className="py-3 text-center">
-                                        <div className="flex flex-nowrap items-center justify-center gap-2">
+                                        <div className="inline-flex items-center justify-center gap-2">
                                             <button
                                                 type="button"
-                                                className="inline-flex h-9 items-center justify-center rounded-lg bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-                                                onClick={() => openClassDetailsModal(row)}
+                                                title="Modifica"
+                                                aria-label="Modifica"
+                                                className="btn-soft-icon"
+                                                onClick={() => openEditClassModal(row)}
                                             >
-                                                Dettagli
+                                                <ActionGlyph actionKey="edit" className="h-4 w-4" />
                                             </button>
-                                            <div className="inline-flex items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    title="Modifica"
-                                                    aria-label="Modifica"
-                                                    className="btn-soft-icon"
-                                                    onClick={() => openEditClassModal(row)}
-                                                >
-                                                    <ActionGlyph actionKey="edit" className="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    title={deleteProcessingClassId === row.class_id ? 'Elimino...' : 'Elimina'}
-                                                    aria-label={deleteProcessingClassId === row.class_id ? 'Elimino...' : 'Elimina'}
-                                                    className="btn-soft-icon-danger"
-                                                    onClick={() => deleteClass(row)}
-                                                    disabled={deleteProcessingClassId === row.class_id}
-                                                >
-                                                    <ActionGlyph actionKey="delete" className="h-4 w-4" />
-                                                </button>
-                                            </div>
+                                            <button
+                                                type="button"
+                                                title={deleteProcessingClassId === row.class_id ? 'Elimino...' : 'Elimina'}
+                                                aria-label={deleteProcessingClassId === row.class_id ? 'Elimino...' : 'Elimina'}
+                                                className="btn-soft-icon-danger"
+                                                onClick={() => deleteClass(row)}
+                                                disabled={deleteProcessingClassId === row.class_id}
+                                            >
+                                                <ActionGlyph actionKey="delete" className="h-4 w-4" />
+                                            </button>
                                         </div>
+                                    </td>
+                                    <td className="py-3 text-center">
+                                        <button
+                                            type="button"
+                                            className="inline-flex h-9 items-center justify-center rounded-lg bg-slate-100 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                                            onClick={() => openClassDetailsModal(row)}
+                                        >
+                                            Dettagli
+                                        </button>
                                     </td>
                                 </tr>
                             ))}

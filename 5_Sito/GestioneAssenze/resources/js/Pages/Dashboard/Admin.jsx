@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import DashboardStatCard from '@/Components/DashboardStatCard';
 import { Head, Link } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -7,6 +8,12 @@ const fallbackStats = [
     { label: 'Classi totali', value: '0' },
     { label: 'Docenti totali', value: '0' },
     { label: 'Errori critici', value: '0' },
+];
+const statDecorations = [
+    { icon: 'users', tone: 'sky' },
+    { icon: 'classes', tone: 'violet' },
+    { icon: 'teacher', tone: 'emerald' },
+    { icon: 'errors', tone: 'rose' },
 ];
 
 const resolveUserKey = (user) =>
@@ -186,20 +193,14 @@ export default function AdminDashboard({
 
             <div className="space-y-6">
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    {resolvedStats.map((stat) => (
-                        <div
+                    {resolvedStats.map((stat, index) => (
+                        <DashboardStatCard
                             key={stat.label}
-                            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                        >
-                            <p className="text-sm text-slate-500">
-                                {stat.label}
-                            </p>
-                            <div className="mt-3 flex items-end justify-between">
-                                <span className="text-2xl font-semibold text-slate-900">
-                                    {stat.value}
-                                </span>
-                            </div>
-                        </div>
+                            label={stat.label}
+                            value={stat.value}
+                            icon={statDecorations[index % statDecorations.length].icon}
+                            tone={statDecorations[index % statDecorations.length].tone}
+                        />
                     ))}
                 </section>
 
@@ -258,7 +259,7 @@ export default function AdminDashboard({
                                             <td className="px-3 py-3 text-center align-middle">
                                                 <button
                                                     type="button"
-                                                    className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                                    className="btn-soft-primary h-8"
                                                     onClick={() => setUserDetailKey(userKey)}
                                                 >
                                                     Dettagli
@@ -424,7 +425,7 @@ export default function AdminDashboard({
                                             <td className="px-3 py-3 text-center align-middle">
                                                 <button
                                                     type="button"
-                                                    className="inline-flex h-8 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                                    className="btn-soft-primary h-8"
                                                     onClick={() => setClassDetailKey(classKey)}
                                                 >
                                                     Dettagli

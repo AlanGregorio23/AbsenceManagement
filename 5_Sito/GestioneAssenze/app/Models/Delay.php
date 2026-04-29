@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\StudentDeadlineReminderService;
+use App\Support\DeadlineWarningProgress;
 use App\Support\DelaySemester;
 use App\Support\SystemSettingsResolver;
 use Carbon\Carbon;
@@ -94,7 +96,13 @@ class Delay extends Model
 
     public static function resolveSemester(?Carbon $referenceDate = null): DelaySemester
     {
-        return DelaySemester::fromDate(($referenceDate ?? now())->copy()->startOfDay());
+        $setting = static::resolveDelaySetting();
+
+        return DelaySemester::fromDate(
+            ($referenceDate ?? now())->copy()->startOfDay(),
+            $setting->resolvedFirstSemesterEndMonth(),
+            $setting->resolvedFirstSemesterEndDay()
+        );
     }
 
     public static function countRegisteredInSemester(int $studentId, ?Carbon $referenceDate = null): int
@@ -111,17 +119,23 @@ class Delay extends Model
 
     public static function shouldCountInSemester(Delay $delay, ?DelaySemester $semester = null): bool
     {
-        $resolvedSemester = $semester ?? self::resolveSemester();
         $statusCode = self::normalizeStatus($delay->status);
+
+        if ($statusCode !== self::STATUS_REGISTERED || ! $delay->count_in_semester) {
+            return false;
+        }
+
+        return self::occursInSemester($delay, $semester);
+    }
+
+    public static function occursInSemester(Delay $delay, ?DelaySemester $semester = null): bool
+    {
+        $resolvedSemester = $semester ?? self::resolveSemester();
         $delayDate = $delay->delay_datetime
             ? Carbon::parse($delay->delay_datetime)
             : null;
 
         if (! $delayDate) {
-            return false;
-        }
-
-        if ($statusCode !== self::STATUS_REGISTERED || ! $delay->count_in_semester) {
             return false;
         }
 
@@ -187,6 +201,16 @@ class Delay extends Model
         $setting ??= static::resolveDelaySetting();
 
         return max((int) $setting->pre_expiry_warning_business_days, 0);
+    }
+
+    public static function preExpiryWarningPercent(?DelaySetting $setting = null): int
+    {
+        $setting ??= static::resolveDelaySetting();
+
+        return DeadlineWarningProgress::normalizePercent(
+            (int) ($setting->pre_expiry_warning_percent
+                ?? DeadlineWarningProgress::DEFAULT_WARNING_PERCENT)
+        );
     }
 
     public static function deadlineModeActive(?DelaySetting $setting = null): bool
@@ -269,19 +293,79 @@ class Delay extends Model
         return $effectiveDeadline;
     }
 
+    public function resolveWarningReferenceDate(?DelaySetting $setting = null): Carbon
+    {
+        $setting ??= static::resolveDelaySetting();
+        $statusCode = static::normalizeStatus((string) $this->status);
+
+        if (static::deadlineModeActive($setting) && $statusCode === static::STATUS_REGISTERED) {
+            if ($this->validated_at) {
+                return Carbon::parse($this->validated_at)->startOfDay();
+            }
+
+            return Carbon::parse($this->created_at ?? now())->startOfDay();
+        }
+
+        return $this->delay_datetime
+            ? Carbon::parse($this->delay_datetime)->startOfDay()
+            : Carbon::today()->startOfDay();
+    }
+
+    public function totalDeadlineBusinessDays(?DelaySetting $setting = null): int
+    {
+        $referenceDate = $this->resolveWarningReferenceDate($setting);
+        $deadline = $this->resolveJustificationDeadline($setting);
+
+        return max(static::businessDaysUntil($referenceDate, $deadline), 0);
+    }
+
+    public function shouldSendPreExpiryWarning(
+        ?DelaySetting $setting = null,
+        ?Carbon $today = null
+    ): bool {
+        $today ??= Carbon::today();
+        $deadline = $this->resolveJustificationDeadline($setting);
+        $remainingBusinessDays = static::businessDaysUntil($today, $deadline);
+        $totalBusinessDays = $this->totalDeadlineBusinessDays($setting);
+
+        return DeadlineWarningProgress::shouldNotify(
+            $totalBusinessDays,
+            $remainingBusinessDays,
+            static::preExpiryWarningPercent($setting)
+        );
+    }
+
     public static function applyAutomaticArbitrary(): int
     {
         $today = Carbon::today();
         $setting = static::resolveDelaySetting();
+        $warningPercent = static::preExpiryWarningPercent($setting);
+
         if (static::deadlineModeActive($setting)) {
+            static::query()
+                ->with('student.guardians')
+                ->where('status', static::STATUS_REGISTERED)
+                ->get()
+                ->each(function (self $delay) use ($setting, $today, $warningPercent): void {
+                    $effectiveDeadline = $delay->syncJustificationDeadline($setting);
+
+                    if (! $delay->shouldSendPreExpiryWarning($setting, $today)) {
+                        return;
+                    }
+
+                    app(StudentDeadlineReminderService::class)->sendDelayReminder(
+                        $delay,
+                        $effectiveDeadline,
+                        $warningPercent
+                    );
+                });
+
             return 0;
         }
 
         if ((bool) $setting->guardian_signature_required) {
             return 0;
         }
-
-        $warningBusinessDays = static::preExpiryWarningBusinessDays($setting);
 
         $openDelays = static::query()
             ->with('student.guardians')
@@ -292,10 +376,12 @@ class Delay extends Model
 
         foreach ($openDelays as $delay) {
             $effectiveDeadline = $delay->syncJustificationDeadline($setting);
-            $daysToDeadline = static::businessDaysUntil($today, $effectiveDeadline);
-
-            if ($warningBusinessDays > 0 && $daysToDeadline === $warningBusinessDays) {
-                static::queuePreRegistrationWarningNotifications($delay, $effectiveDeadline);
+            if ($delay->shouldSendPreExpiryWarning($setting, $today)) {
+                app(StudentDeadlineReminderService::class)->sendDelayReminder(
+                    $delay,
+                    $effectiveDeadline,
+                    $warningPercent
+                );
             }
 
             if (! $effectiveDeadline->lt($today)) {
@@ -312,25 +398,6 @@ class Delay extends Model
         }
 
         return $updated;
-    }
-
-    private static function queuePreRegistrationWarningNotifications(self $delay, Carbon $deadline): void
-    {
-        $deadlineLabel = $deadline->format('d/m/Y');
-        $typeSuffix = $deadline->toDateString();
-
-        $studentEmail = $delay->student?->email;
-        if ($studentEmail) {
-            static::queueEmailNotification(
-                $delay,
-                'pre_registered_student_'.$typeSuffix,
-                $studentEmail,
-                'Promemoria ritardo in scadenza',
-                'Il ritardo '.$delay->id.' scade il '.$deadlineLabel.'. '
-                .'Se non viene completato in tempo sara registrato nel conteggio.'
-            );
-        }
-
     }
 
     private static function queueAutomaticRegistrationNotifications(self $delay): void

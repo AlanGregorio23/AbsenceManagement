@@ -125,6 +125,8 @@ Route::middleware('auth')->group(function () {
         ->name('teacher.delays.extend-deadline');
     Route::post('/docente/ritardi/{delay}/reinvia-firma', [TeacherDelayController::class, 'resendGuardianConfirmationEmail'])
         ->name('teacher.delays.resend-guardian-email');
+    Route::get('/docente/ritardi/{delay}/firma-tutore', [TeacherDelayController::class, 'showGuardianSignature'])
+        ->name('teacher.delays.guardian-signature.view');
     Route::delete('/docente/ritardi/{delay}/elimina', [TeacherDelayController::class, 'destroy'])
         ->name('teacher.delays.destroy');
     Route::get('/docente/report-mensili', [TeacherMonthlyReportController::class, 'index'])
@@ -139,6 +141,8 @@ Route::middleware('auth')->group(function () {
         ->name('teacher.monthly-reports.resend-email');
     Route::post('/docente/report-mensili/{monthlyReport}/approva', [TeacherMonthlyReportController::class, 'approve'])
         ->name('teacher.monthly-reports.approve');
+    Route::post('/docente/report-mensili/{monthlyReport}/rifiuta', [TeacherMonthlyReportController::class, 'reject'])
+        ->name('teacher.monthly-reports.reject');
 
     Route::get('/docente/classi', [DashboardTeacherController::class, 'classes'])
         ->name('teacher.classes');

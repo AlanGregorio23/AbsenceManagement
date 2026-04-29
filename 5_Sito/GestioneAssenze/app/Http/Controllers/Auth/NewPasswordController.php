@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\NewPasswordRequest;
+use App\Services\PasswordSetupService;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class NewPasswordController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(NewPasswordRequest $request): RedirectResponse
+    public function store(NewPasswordRequest $request, PasswordSetupService $passwordSetupService): RedirectResponse
     {
         $request->validated();
 
@@ -41,12 +42,13 @@ class NewPasswordController extends Controller
         // database. Otherwise we will parse the error and return the response.
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user) use ($request) {
+            function ($user) use ($request, $passwordSetupService) {
                 $user->forceFill([
                     'password' => Hash::make($request->password),
                     'remember_token' => Str::random(60),
                 ])->save();
 
+                $passwordSetupService->deleteForEmail($user->email);
                 event(new PasswordReset($user));
             }
         );
@@ -56,6 +58,18 @@ class NewPasswordController extends Controller
         // redirect them back to where they came from with their error message.
         if ($status == Password::PASSWORD_RESET) {
             return redirect()->route('login')->with('status', trans($status, [], 'it'));
+        }
+
+        $user = $passwordSetupService->resetPassword(
+            (string) $request->input('email'),
+            (string) $request->input('token'),
+            (string) $request->input('password'),
+        );
+
+        if ($user !== null) {
+            event(new PasswordReset($user));
+
+            return redirect()->route('login')->with('status', trans(Password::PASSWORD_RESET, [], 'it'));
         }
 
         throw ValidationException::withMessages([

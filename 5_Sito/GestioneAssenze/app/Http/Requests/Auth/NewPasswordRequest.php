@@ -16,7 +16,7 @@ class NewPasswordRequest extends FormRequest
     {
         return [
             'token' => 'required',
-            'email' => 'required|email',
+            'email' => 'required|email:filter',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ];
     }

@@ -1,30 +1,30 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Modal from '@/Components/Modal';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { resolveAnnualHoursLimitLabels } from '@/annualHoursLimit';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
 const inputClass =
     'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
 
 const actionStyles = {
-    approve: 'border-lime-500 bg-lime-500 text-white hover:bg-lime-600',
-    approve_without_guardian:
-        'border-green-500 bg-green-500 text-white hover:bg-green-600',
-    reject: 'border-red-500 bg-red-500 text-white hover:bg-red-600',
-    delete: 'border-rose-600 bg-rose-600 text-white hover:bg-rose-700',
-    extend: 'border-amber-400 bg-amber-400 text-slate-900 hover:bg-amber-500',
-    accept_certificate: 'border-sky-500 bg-sky-500 text-white hover:bg-sky-600',
-    reject_certificate: 'border-red-500 bg-red-500 text-white hover:bg-red-600',
-    edit: 'border-slate-600 bg-slate-600 text-white hover:bg-slate-700',
+    approve: 'btn-soft-success',
+    approve_without_guardian: 'btn-soft-success',
+    reject: 'btn-soft-danger',
+    delete: 'btn-soft-icon-danger',
+    extend: 'btn-soft-warning',
+    accept_certificate: 'btn-soft-success',
+    reject_certificate: 'btn-soft-danger',
+    edit: 'btn-soft-icon',
 };
 
-const resolveExclusionComment = (counts40Hours, comment) => {
+const resolveExclusionComment = (counts40Hours, comment, fallbackComment) => {
     if (counts40Hours) {
         return '';
     }
 
     const trimmed = String(comment ?? '').trim();
-    return trimmed !== '' ? trimmed : 'Esclusa dalle 40 ore da regola motivo.';
+    return trimmed !== '' ? trimmed : fallbackComment;
 };
 
 const statusLabels = {
@@ -61,6 +61,8 @@ export default function TeacherAbsenceDetail({
     reasons = [],
     history = [],
 }) {
+    const { props } = usePage();
+    const annualHoursLimit = resolveAnnualHoursLimitLabels(props);
     const modalActions = [
         'approve',
         'approve_without_guardian',
@@ -75,7 +77,8 @@ export default function TeacherAbsenceDetail({
     const initialCounts40Hours = Boolean(item?.conteggio_40_ore);
     const initialCounts40Comment = resolveExclusionComment(
         initialCounts40Hours,
-        item?.counts_40_hours_comment ?? ''
+        item?.counts_40_hours_comment ?? '',
+        annualHoursLimit.ruleReasonComment
     );
 
     const [activeAction, setActiveAction] = useState(
@@ -224,28 +227,47 @@ export default function TeacherAbsenceDetail({
         );
         pushChange('Motivazione', item.motivation ?? '', updateForm.data.motivation ?? '');
         pushChange(
-            'Rientra nelle 40 ore',
+            annualHoursLimit.included,
             yesNoLabel(Boolean(item.conteggio_40_ore)),
             yesNoLabel(Boolean(updateForm.data.counts_40_hours))
         );
 
         const beforeCountsComment = Boolean(item.conteggio_40_ore)
             ? '-'
-            : resolveExclusionComment(false, item.counts_40_hours_comment ?? '');
+            : resolveExclusionComment(
+                false,
+                item.counts_40_hours_comment ?? '',
+                annualHoursLimit.ruleReasonComment
+            );
         const afterCountsComment = Boolean(updateForm.data.counts_40_hours)
             ? '-'
-            : resolveExclusionComment(false, updateForm.data.counts_40_hours_comment);
-        pushChange('Motivo esclusione 40 ore', beforeCountsComment, afterCountsComment);
+            : resolveExclusionComment(
+                false,
+                updateForm.data.counts_40_hours_comment,
+                annualHoursLimit.ruleReasonComment
+            );
+        pushChange(
+            annualHoursLimit.countedNote,
+            beforeCountsComment,
+            afterCountsComment
+        );
         pushChange('Commento docente', item.commento_docente ?? '', updateForm.data.comment ?? '');
 
         return changes;
-    }, [item, updateForm.data]);
+    }, [
+        annualHoursLimit.countedNote,
+        annualHoursLimit.included,
+        annualHoursLimit.ruleReasonComment,
+        item,
+        updateForm.data,
+    ]);
 
     useEffect(() => {
         const nextCounts40Hours = Boolean(item?.conteggio_40_ore);
         const nextCounts40Comment = resolveExclusionComment(
             nextCounts40Hours,
-            item?.counts_40_hours_comment ?? ''
+            item?.counts_40_hours_comment ?? '',
+            annualHoursLimit.ruleReasonComment
         );
 
         setCounts40Hours(nextCounts40Hours);
@@ -264,7 +286,7 @@ export default function TeacherAbsenceDetail({
         setDeleteConfirmChecked(false);
         setDeleteConfirmCode('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.absence_id, initialAction]);
+    }, [annualHoursLimit.ruleReasonComment, item.absence_id, initialAction]);
 
     useEffect(() => {
         if (!activeAction) {
@@ -388,7 +410,8 @@ export default function TeacherAbsenceDetail({
                 const nextCounts40Hours = Boolean(updateForm.data.counts_40_hours);
                 const nextCounts40Comment = resolveExclusionComment(
                     nextCounts40Hours,
-                    updateForm.data.counts_40_hours_comment
+                    updateForm.data.counts_40_hours_comment,
+                    annualHoursLimit.ruleReasonComment
                 );
 
                 setCounts40Hours(nextCounts40Hours);
@@ -474,8 +497,8 @@ export default function TeacherAbsenceDetail({
                     </div>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-2">
-                    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="grid items-stretch gap-6 lg:grid-cols-2">
+                    <section className="h-full space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                         <div>
                             <h2 className="text-sm font-semibold text-slate-800">
                                 Dati assenza
@@ -504,14 +527,6 @@ export default function TeacherAbsenceDetail({
                                                     ? `Presente (${item.firma_tutore_data})`
                                                     : 'Presente'
                                                 : 'Assente')}
-                                    </dd>
-                                </div>
-                                <div className="flex justify-between gap-3">
-                                    <dt>40 ore</dt>
-                                    <dd>
-                                        {counts40Hours
-                                            ? 'Rientra nelle 40 ore'
-                                            : 'Esclusa dalle 40 ore'}
                                     </dd>
                                 </div>
                                 <div className="flex justify-between gap-3">
@@ -603,25 +618,6 @@ export default function TeacherAbsenceDetail({
                             )}
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <h3 className="text-sm font-semibold text-slate-800">
-                                Gestione 40 ore
-                            </h3>
-                            <p className="mt-2 text-sm text-slate-700">
-                                {counts40Hours
-                                    ? 'Rientra nelle 40 ore'
-                                    : 'Esclusa dalle 40 ore'}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                                Modifica il valore dal form "Modifica assenza".
-                            </p>
-                            {!counts40Hours && (
-                                <p className="mt-2 text-xs text-slate-500">
-                                    Motivo esclusione: {counts40Comment}
-                                </p>
-                            )}
-                        </div>
-
                         <div id="azioni" className="rounded-xl border border-slate-200 p-3">
                             <h3 className="text-sm font-semibold text-slate-800">
                                 Azioni assenza
@@ -631,9 +627,12 @@ export default function TeacherAbsenceDetail({
                                     Nessuna azione disponibile su questa assenza.
                                 </p>
                             )}
-                            <div className="mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
+                            <div className="mt-3 flex flex-nowrap items-center justify-end gap-2 overflow-x-auto whitespace-nowrap pb-1">
                                 {actions.map((action) => {
                                     const iconOnly = action.key === 'edit' || action.key === 'delete';
+                                    const buttonClass = iconOnly
+                                        ? actionStyles[action.key]
+                                        : `${actionStyles[action.key]} whitespace-nowrap`;
 
                                     return (
                                         <button
@@ -641,11 +640,7 @@ export default function TeacherAbsenceDetail({
                                             type="button"
                                             title={action.label}
                                             aria-label={action.label}
-                                            className={`shrink-0 rounded-md border text-xs font-semibold transition ${actionStyles[action.key]} ${
-                                                iconOnly
-                                                    ? 'flex h-7 w-7 items-center justify-center p-0'
-                                                    : 'px-3 py-1 whitespace-nowrap'
-                                            }`}
+                                            className={`shrink-0 ${buttonClass}`}
                                             onClick={() => openAction(action.key)}
                                         >
                                             {iconOnly ? (
@@ -666,7 +661,7 @@ export default function TeacherAbsenceDetail({
                                     >
                                         <button
                                             type="submit"
-                                            className="rounded-md border border-indigo-500 bg-indigo-500 px-3 py-1 text-xs font-semibold text-white whitespace-nowrap transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-70"
+                                            className="btn-soft-info whitespace-nowrap"
                                             disabled={resendGuardianEmailForm.processing}
                                         >
                                             Reinvia email conferma tutore
@@ -677,8 +672,8 @@ export default function TeacherAbsenceDetail({
                         </div>
                     </section>
 
-                    <div className="space-y-4">
-                        <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex h-full flex-col gap-4">
+                        <section className="flex-1 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <h2 className="text-lg font-semibold text-slate-900">
                                     Certificato medico
@@ -764,7 +759,7 @@ export default function TeacherAbsenceDetail({
                                                     <button
                                                         key={action.key}
                                                         type="button"
-                                                        className={`shrink-0 rounded-md border px-3 py-1 text-xs font-semibold whitespace-nowrap transition ${actionStyles[action.key]}`}
+                                                        className={`shrink-0 whitespace-nowrap ${actionStyles[action.key]}`}
                                                         onClick={() =>
                                                             openAction(action.key)
                                                         }
@@ -855,10 +850,10 @@ export default function TeacherAbsenceDetail({
                                     className="mt-4 space-y-3"
                                 >
                                     <p className="text-xs text-slate-500">
-                                        40 ore:{' '}
+                                        {annualHoursLimit.counted}:{' '}
                                         {counts40Hours
-                                            ? 'Rientra nelle 40 ore'
-                                            : 'Esclusa dalle 40 ore'}
+                                            ? annualHoursLimit.included
+                                            : annualHoursLimit.excluded}
                                     </p>
                                     {!counts40Hours && (
                                         <p className="text-xs text-slate-500">
@@ -1170,12 +1165,12 @@ export default function TeacherAbsenceDetail({
                                                         )
                                                     }
                                                 />
-                                                Rientra nelle 40 ore
+                                                {annualHoursLimit.included}
                                             </label>
                                             {!updateForm.data.counts_40_hours && (
                                                 <>
                                                     <label className="block text-xs font-semibold text-slate-700">
-                                                        Motivo esclusione 40 ore
+                                                        {annualHoursLimit.countedNote}
                                                     </label>
                                                     <textarea
                                                         rows={2}
@@ -1324,7 +1319,7 @@ export default function TeacherAbsenceDetail({
                                     className="mt-4 space-y-3"
                                 >
                                     <label className="block text-xs font-semibold text-slate-700">
-                                        Motivo rifiuto certificato
+                                        Motivo rifiuto certificato obbligatorio
                                     </label>
                                     <textarea
                                         rows={4}

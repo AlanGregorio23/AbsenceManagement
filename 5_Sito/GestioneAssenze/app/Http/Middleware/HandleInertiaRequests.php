@@ -5,6 +5,8 @@ namespace App\Http\Middleware;
 use App\Models\Absence;
 use App\Models\Delay;
 use App\Models\Leave;
+use App\Support\AnnualHoursLimitLabels;
+use App\Support\SystemSettingsResolver;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -37,8 +39,25 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn () => $this->serializeUser($request->user()),
             ],
+            'annualHoursLimitLabels' => fn () => $this->buildAnnualHoursLimitLabels(),
             'notifications' => fn () => $this->buildNotificationCenter($request),
             'global_search' => fn () => $this->buildGlobalSearchIndex($request),
+        ];
+    }
+
+    private function buildAnnualHoursLimitLabels(): array
+    {
+        $absenceSetting = SystemSettingsResolver::absenceSetting();
+
+        return [
+            'value' => max((int) $absenceSetting->max_annual_hours, 0),
+            'limit' => AnnualHoursLimitLabels::limit($absenceSetting),
+            'included' => AnnualHoursLimitLabels::included($absenceSetting),
+            'excluded' => AnnualHoursLimitLabels::excluded($absenceSetting),
+            'excludedMasculine' => AnnualHoursLimitLabels::excludedMasculine($absenceSetting),
+            'counted' => AnnualHoursLimitLabels::countedLabel($absenceSetting),
+            'countedNote' => AnnualHoursLimitLabels::countedNoteLabel($absenceSetting),
+            'ruleReasonComment' => AnnualHoursLimitLabels::ruleReasonComment($absenceSetting),
         ];
     }
 

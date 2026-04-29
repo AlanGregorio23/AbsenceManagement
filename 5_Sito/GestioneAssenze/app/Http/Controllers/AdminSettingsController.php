@@ -46,21 +46,50 @@ class AdminSettingsController extends BaseController
     public function update(AdminSettingsUpdateRequest $request)
     {
         $validated = $request->validated();
+        $currentDelaySetting = DelaySetting::query()->first();
         $validated['absence']['vice_director_email'] = $this->normalizeOptionalEmail(
             $validated['absence']['vice_director_email'] ?? null
         );
+        $validated['absence']['pre_expiry_warning_percent'] = min(
+            max((int) ($validated['absence']['pre_expiry_warning_percent'] ?? 80), 1),
+            100
+        );
         $validated['delay']['deadline_active'] = (bool) ($validated['delay']['deadline_active'] ?? false);
         $validated['delay']['deadline_business_days'] = max(
-            (int) ($validated['delay']['deadline_business_days'] ?? 0),
+            (int) ($validated['delay']['deadline_business_days']
+                ?? $currentDelaySetting?->deadline_business_days
+                ?? 0),
             0
         );
         $validated['delay']['justification_business_days'] = max(
-            (int) ($validated['delay']['justification_business_days'] ?? 0),
+            (int) ($validated['delay']['justification_business_days']
+                ?? $currentDelaySetting?->justification_business_days
+                ?? 0),
             0
         );
         $validated['delay']['pre_expiry_warning_business_days'] = max(
-            (int) ($validated['delay']['pre_expiry_warning_business_days'] ?? 0),
+            (int) ($validated['delay']['pre_expiry_warning_business_days']
+                ?? $currentDelaySetting?->pre_expiry_warning_business_days
+                ?? 0),
             0
+        );
+        $validated['delay']['pre_expiry_warning_percent'] = min(
+            max((int) ($validated['delay']['pre_expiry_warning_percent'] ?? 80), 1),
+            100
+        );
+        $validated['delay']['first_semester_end_day'] = (int) (
+            $validated['delay']['first_semester_end_day']
+            ?? $currentDelaySetting?->resolvedFirstSemesterEndDay()
+            ?? DelaySetting::DEFAULT_FIRST_SEMESTER_END_DAY
+        );
+        $validated['delay']['first_semester_end_month'] = (int) (
+            $validated['delay']['first_semester_end_month']
+            ?? $currentDelaySetting?->resolvedFirstSemesterEndMonth()
+            ?? DelaySetting::DEFAULT_FIRST_SEMESTER_END_MONTH
+        );
+        $this->validateDelaySemesterBoundary(
+            $validated['delay']['first_semester_end_day'],
+            $validated['delay']['first_semester_end_month']
         );
         $validated['absence']['leave_request_notice_working_hours'] = max(
             (int) ($validated['absence']['leave_request_notice_working_hours'] ?? 24),
@@ -237,12 +266,17 @@ class AdminSettingsController extends BaseController
 
         $actor = $request->user();
         $importedDates = $parsed['dates'];
+        $metadata = is_array($parsed['metadata'] ?? null) ? $parsed['metadata'] : [];
+        $detectedSchoolYear = $this->normalizeImportedSchoolYear($metadata['school_year'] ?? null);
+        $firstSemesterEndDate = $this->normalizeImportedMetadataDate(
+            $metadata['first_semester_end_date'] ?? null
+        );
         $schoolYears = [];
         $upsertPayload = [];
         $timestamp = now();
         foreach ($importedDates as $date) {
             $normalizedDate = Carbon::parse((string) $date)->toDateString();
-            $schoolYear = SchoolHoliday::schoolYearFromDate($normalizedDate);
+            $schoolYear = $detectedSchoolYear ?? SchoolHoliday::schoolYearFromDate($normalizedDate);
             $schoolYears[$schoolYear] = true;
             $upsertPayload[] = [
                 'holiday_date' => $normalizedDate,
@@ -257,7 +291,7 @@ class AdminSettingsController extends BaseController
             ];
         }
 
-        DB::transaction(function () use ($schoolYears, $upsertPayload): void {
+        DB::transaction(function () use ($schoolYears, $upsertPayload, $firstSemesterEndDate): void {
             SchoolHoliday::query()
                 ->whereIn('school_year', array_keys($schoolYears))
                 ->where('source', SchoolHoliday::SOURCE_PDF_IMPORT)
@@ -275,6 +309,13 @@ class AdminSettingsController extends BaseController
                     'updated_at',
                 ]
             );
+
+            if ($firstSemesterEndDate !== null) {
+                $delaySetting = DelaySetting::query()->firstOrNew([]);
+                $delaySetting->first_semester_end_day = (int) $firstSemesterEndDate->day;
+                $delaySetting->first_semester_end_month = (int) $firstSemesterEndDate->month;
+                $delaySetting->save();
+            }
         });
 
         OperationLog::record(
@@ -285,8 +326,9 @@ class AdminSettingsController extends BaseController
             [
                 'imported_count' => count($importedDates),
                 'school_years' => array_keys($schoolYears),
+                'first_semester_end_date' => $firstSemesterEndDate?->toDateString(),
                 'source_file_path' => $storedPath,
-                'parser_metadata' => $parsed['metadata'] ?? [],
+                'parser_metadata' => $metadata,
             ],
             'INFO',
             $request
@@ -296,6 +338,36 @@ class AdminSettingsController extends BaseController
             'success',
             'Calendario vacanze importato: '.count($importedDates).' date salvate.'
         );
+    }
+
+    private function normalizeImportedSchoolYear(mixed $value): ?string
+    {
+        $schoolYear = trim((string) ($value ?? ''));
+        if (preg_match('/^\d{4}-\d{4}$/', $schoolYear) !== 1) {
+            return null;
+        }
+
+        [$startYear, $endYear] = array_map('intval', explode('-', $schoolYear, 2));
+        if ($endYear !== $startYear + 1) {
+            return null;
+        }
+
+        return $schoolYear;
+    }
+
+    private function normalizeImportedMetadataDate(mixed $value): ?Carbon
+    {
+        $date = trim((string) ($value ?? ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            return null;
+        }
+
+        [$year, $month, $day] = array_map('intval', explode('-', $date, 3));
+        if (! checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return Carbon::create($year, $month, $day)->startOfDay();
     }
 
     public function storeHoliday(SchoolHolidayRequest $request)
@@ -451,6 +523,20 @@ class AdminSettingsController extends BaseController
                 ]);
             }
         }
+    }
+
+    private function validateDelaySemesterBoundary(int $day, int $month): void
+    {
+        $referenceYear = $month >= 8 ? 2025 : 2026;
+
+        if (checkdate($month, $day, $referenceYear)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'delay.first_semester_end_day' => 'La data di fine primo semestre non e valida.',
+            'delay.first_semester_end_month' => 'La data di fine primo semestre non e valida.',
+        ]);
     }
 
     private function buildRetentionAdvice(array $settings): array

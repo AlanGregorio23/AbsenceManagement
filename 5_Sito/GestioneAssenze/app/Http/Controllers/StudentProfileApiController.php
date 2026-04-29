@@ -539,10 +539,8 @@ class StudentProfileApiController extends Controller
         ];
         $delayRuleInsights = $this->buildDelayRuleInsights($delays);
         $stats['delays_registered_semester'] = (int) $delayRuleInsights['registered_count'];
-        $stats['delays_unregistered_semester'] = max(
-            (int) $stats['delays_total'] - (int) $stats['delays_registered_semester'],
-            0
-        );
+        $stats['delays_outside_semester'] = (int) ($delayRuleInsights['outside_semester_count'] ?? 0);
+        $stats['delays_unregistered_semester'] = (int) $stats['delays_outside_semester'];
 
         $statusResult = $this->buildStatus($stats, $viewer);
         $status = $statusResult['status'];
@@ -606,6 +604,9 @@ class StudentProfileApiController extends Controller
         $registeredCount = (int) $registeredDelays->count();
         $registeredMinutes = (int) $registeredDelays
             ->sum(fn (Delay $delay) => max(0, (int) ($delay->minutes ?? 0)));
+        $outsideSemesterCount = (int) $delays
+            ->reject(fn (Delay $delay) => Delay::occursInSemester($delay, $semester))
+            ->count();
 
         $ruleEvaluation = DelayRuleEvaluator::evaluateForCount($registeredCount);
         $matchedRule = $ruleEvaluation['primary_rule'];
@@ -631,6 +632,7 @@ class StudentProfileApiController extends Controller
 
         return [
             'registered_count' => $registeredCount,
+            'outside_semester_count' => $outsideSemesterCount,
             'registered_minutes' => $registeredMinutes,
             'rule_id' => $matchedRule?->id,
             'rule_min_delays' => $matchedRule?->min_delays,

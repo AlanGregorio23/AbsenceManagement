@@ -1,13 +1,25 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import DashboardStatCard from '@/Components/DashboardStatCard';
 import RequestDetailsModal from '@/Pages/Student/Partials/RequestDetailsModal';
-import { Head, Link } from '@inertiajs/react';
+import { resolveAnnualHoursLimitLabels } from '@/annualHoursLimit';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
-const defaultStats = [
+const buildDefaultStats = (maxAnnualHours) => [
     { label: 'Ore di assenza', value: '0', helper: '+0 questo mese' },
-    { label: 'Ore disponibili', value: '0 / 40', helper: 'Monte ore annuale' },
+    {
+        label: 'Ore disponibili',
+        value: `0 / ${maxAnnualHours > 0 ? maxAnnualHours : '-'}`,
+        helper: 'Monte ore annuale',
+    },
     { label: 'Azioni richieste', value: '0', helper: 'Operazioni da completare' },
     { label: 'Ritardi', value: '0', helper: 'Totale registrati' },
+];
+const statDecorations = [
+    { icon: 'clock', tone: 'indigo' },
+    { icon: 'docs', tone: 'amber' },
+    { icon: 'chart', tone: 'emerald' },
+    { icon: 'calendar', tone: 'rose' },
 ];
 
 const certificateReminderCodes = new Set(['required_pending']);
@@ -47,8 +59,10 @@ export default function StudentDashboard({
     assenze = [],
     stats = [],
 }) {
+    const { props } = usePage();
+    const annualHoursLimit = resolveAnnualHoursLimitLabels(props);
     const [selectedItem, setSelectedItem] = useState(null);
-    const resolvedStats = stats.length ? stats : defaultStats;
+    const resolvedStats = stats.length ? stats : buildDefaultStats(annualHoursLimit.value);
     const safeAssenze = Array.isArray(assenze)
         ? assenze
         : Object.values(assenze ?? {});
@@ -59,21 +73,15 @@ export default function StudentDashboard({
 
             <div className="space-y-6">
                 <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    {resolvedStats.map((stat) => (
-                        <div
+                    {resolvedStats.map((stat, index) => (
+                        <DashboardStatCard
                             key={stat.label}
-                            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                        >
-                            <p className="text-sm text-slate-500">{stat.label}</p>
-                            <div className="mt-3 flex items-end justify-between gap-3">
-                                <span className="text-3xl font-semibold text-slate-900">
-                                    {stat.value}
-                                </span>
-                                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
-                                    {stat.helper}
-                                </span>
-                            </div>
-                        </div>
+                            label={stat.label}
+                            value={stat.value}
+                            helper={stat.helper}
+                            icon={statDecorations[index % statDecorations.length].icon}
+                            tone={statDecorations[index % statDecorations.length].tone}
+                        />
                     ))}
                 </section>
 
@@ -127,6 +135,10 @@ export default function StudentDashboard({
                                         <p className="text-slate-700">{assenza.tipo}</p>
                                     </div>
                                     <div>
+                                        <p className="text-slate-400">Scadenza</p>
+                                        <p className="text-slate-700">{assenza.scadenza ?? '-'}</p>
+                                    </div>
+                                    <div>
                                         <p className="text-slate-400">Certificato</p>
                                         {assenza.tipo === 'Assenza' ? (
                                             <span
@@ -152,7 +164,7 @@ export default function StudentDashboard({
                                     <button
                                         type="button"
                                         onClick={() => setSelectedItem(assenza)}
-                                        className="btn-soft-neutral h-8"
+                                        className="btn-soft-primary h-8"
                                     >
                                         Apri pratica
                                     </button>
@@ -186,6 +198,7 @@ export default function StudentDashboard({
                                     <th className="py-3 text-center align-middle">Motivo</th>
                                     <th className="py-3 text-center align-middle">Data</th>
                                     <th className="py-3 text-center align-middle">Tipo</th>
+                                    <th className="py-3 text-center align-middle">Scadenza</th>
                                     <th className="py-3 text-center align-middle">Certificato</th>
                                     <th className="py-3 text-center align-middle">Stato</th>
                                     <th className="py-3 text-center align-middle">Azioni</th>
@@ -196,7 +209,7 @@ export default function StudentDashboard({
                                     <tr>
                                         <td
                                             className="py-6 text-center text-sm text-slate-400"
-                                            colSpan={8}
+                                            colSpan={9}
                                         >
                                             Nessuna richiesta trovata.
                                         </td>
@@ -218,6 +231,7 @@ export default function StudentDashboard({
                                         </td>
                                         <td className="py-3 text-center align-middle">{assenza.data}</td>
                                         <td className="py-3 text-center align-middle">{assenza.tipo}</td>
+                                        <td className="py-3 text-center align-middle">{assenza.scadenza ?? '-'}</td>
                                         <td className="py-3 text-center align-middle">
                                             {assenza.tipo === 'Assenza' ? (
                                                 <span
@@ -242,7 +256,7 @@ export default function StudentDashboard({
                                                 <button
                                                     type="button"
                                                     onClick={() => setSelectedItem(assenza)}
-                                                    className="btn-soft-neutral h-8"
+                                                    className="btn-soft-primary h-8"
                                                 >
                                                     Apri pratica
                                                 </button>

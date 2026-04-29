@@ -123,6 +123,16 @@ export default function StudentMonthlyReports({ items = [] }) {
                         <p className="mt-2 text-sm text-slate-500">
                             Dopo stampa e firma, carica la scansione per approvazione docente.
                         </p>
+                        {selectedReport?.rejection_comment && (
+                            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                                <p className="font-semibold">
+                                    Report rifiutato: ricarica richiesta
+                                </p>
+                                <p className="mt-1 whitespace-pre-wrap">
+                                    {selectedReport.rejection_comment}
+                                </p>
+                            </div>
+                        )}
 
                         <form className="mt-5 space-y-4" onSubmit={submitUpload}>
                             <label className="flex flex-col gap-2 text-sm text-slate-600">
@@ -262,6 +272,11 @@ export default function StudentMonthlyReports({ items = [] }) {
                                             >
                                                 {item.status_label}
                                             </span>
+                                            {item.rejection_comment && (
+                                                <p className="mx-auto mt-2 max-w-xs whitespace-pre-wrap text-xs text-rose-600">
+                                                    {item.rejection_comment}
+                                                </p>
+                                            )}
                                         </td>
                                         <td className="py-3 text-center align-middle text-xs">
                                             {item.generated_at ?? '-'}

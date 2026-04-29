@@ -1,27 +1,21 @@
 import Modal from '@/Components/Modal';
+import { resolveAnnualHoursLimitLabels } from '@/annualHoursLimit';
+import { usePage } from '@inertiajs/react';
 
 const baseStatusBadge = 'bg-slate-100 text-slate-700';
 
-const formatDeadline = (item) => {
-    if (!item?.scadenza || item.scadenza === '-') {
-        return '-';
-    }
-
-    if (item.countdown && item.countdown !== '-') {
-        return `${item.scadenza} (${item.countdown})`;
-    }
-
-    return item.scadenza;
-};
-
 export default function RequestDetailsModal({ item = null, open = false, onClose = () => {} }) {
+    const { props } = usePage();
+    const annualHoursLimit = resolveAnnualHoursLimitLabels(props);
+
     if (!item) {
         return null;
     }
 
+    const isLeave = item.tipo === 'Congedo';
     const detailFields = [
         { label: 'Tipo', content: item.tipo ?? '-' },
-        { label: 'Data', content: item.data ?? '-' },
+        ...(!isLeave ? [{ label: 'Data', content: item.data ?? '-' }] : []),
         { label: 'Durata', content: item.durata ?? '-' },
         { label: 'Motivo', content: item.motivo ?? '-' },
         {
@@ -36,6 +30,20 @@ export default function RequestDetailsModal({ item = null, open = false, onClose
         },
     ];
 
+    if (item.scadenza && item.scadenza !== '-') {
+        detailFields.push({
+            label: 'Scadenza completamento',
+            content: item.scadenza,
+        });
+    }
+
+    if (item.countdown && item.countdown !== '-') {
+        detailFields.push({
+            label: 'Tempo residuo',
+            content: item.countdown,
+        });
+    }
+
     if (item.tipo === 'Assenza') {
         const teacherComment = String(item.commento_docente ?? '').trim();
         const rejectedCertificateComment = String(
@@ -43,10 +51,6 @@ export default function RequestDetailsModal({ item = null, open = false, onClose
         ).trim();
 
         detailFields.push(
-            {
-                label: 'Scadenza certificato',
-                content: formatDeadline(item),
-            },
             {
                 label: 'Obbligo certificato',
                 content: (
@@ -67,7 +71,7 @@ export default function RequestDetailsModal({ item = null, open = false, onClose
                         : 'Assente'),
             },
             {
-                label: 'Conteggio 40 ore',
+                label: annualHoursLimit.counted,
                 content: item.conteggio_40_ore_label ?? '-',
             }
         );
@@ -94,35 +98,19 @@ export default function RequestDetailsModal({ item = null, open = false, onClose
         }
     }
 
-    if (item.tipo === 'Congedo' && item.periodo) {
-        const effectiveHours = Number(item.requested_hours ?? item.ore);
-        const effectiveHoursLabel = Number.isFinite(effectiveHours) && effectiveHours > 0
-            ? `${effectiveHours} ore`
-            : '-';
-
+    if (isLeave && item.periodo) {
         detailFields.push({
             label: 'Periodo',
             content: item.periodo,
-        });
-        detailFields.push({
-            label: 'Ore effettive',
-            content: effectiveHoursLabel,
         });
         detailFields.push({
             label: 'Destinazione',
             content: item.destinazione || item.destination || '-',
         });
 
-        if (item.firma_tutore_label) {
-            detailFields.push({
-                label: 'Firma tutore',
-                content: item.firma_tutore_label,
-            });
-        }
-
         if (item.conteggio_40_ore_label) {
             detailFields.push({
-                label: 'Conteggio 40 ore',
+                label: annualHoursLimit.counted,
                 content: item.conteggio_40_ore_label,
             });
         }

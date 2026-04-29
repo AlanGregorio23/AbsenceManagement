@@ -1,0 +1,16 @@
+Accesso gmail:
+
+gestioneassenze2@gmail.com
+Trevano26!
+
+
+ENV configurazione mail:
+
+MAIL_MAILER=smtp
+MAIL_SCHEME=null
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_USERNAME=gestioneassenze2@gmail.com
+MAIL_PASSWORD="rlla gdho mmxz tjaz "
+MAIL_FROM_ADDRESS=gestioneassenze2@gmail.com
+MAIL_FROM_NAME="${APP_NAME}"

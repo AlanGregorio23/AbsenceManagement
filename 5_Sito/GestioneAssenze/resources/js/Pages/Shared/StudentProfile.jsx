@@ -1,5 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import {
+    hoursOnLimitLabel,
+    onLimitShortLabel,
+    resolveAnnualHoursLimitLabels,
+} from '@/annualHoursLimit';
+import { Head, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 
 const formatBirthDate = (value) => {
@@ -50,6 +55,8 @@ const defaultExportSections = exportSectionOptions.reduce((selected, option) => 
 }, {});
 
 export default function StudentProfile({ profile }) {
+    const { props } = usePage();
+    const annualHoursLimit = resolveAnnualHoursLimitLabels(props);
     const [query, setQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState('Tutti');
     const [isExportOpen, setIsExportOpen] = useState(false);
@@ -260,7 +267,7 @@ export default function StudentProfile({ profile }) {
                         helper={`${stats.absences_total ?? 0} eventi assenza`}
                     />
                     <StatCard
-                        label="Ore su 40"
+                        label={hoursOnLimitLabel(annualHoursLimit.value)}
                         value={stats.hours_on_40 ?? 0}
                         helper="Conteggiate nel monte ore"
                     />
@@ -297,10 +304,12 @@ export default function StudentProfile({ profile }) {
                         </div>
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <p className="text-xs uppercase tracking-wide text-slate-500">
-                                Non registrati semestre
+                                Fuori semestre
                             </p>
                             <p className="mt-1 text-lg font-semibold text-slate-900">
-                                {stats.delays_unregistered_semester ?? 0}
+                                {stats.delays_outside_semester ??
+                                    stats.delays_unregistered_semester ??
+                                    0}
                             </p>
                         </div>
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -382,7 +391,9 @@ export default function StudentProfile({ profile }) {
                                     <th className="px-3 py-3 text-center align-middle">Dettaglio</th>
                                     <th className="px-3 py-3 text-center align-middle">Stato</th>
                                     <th className="px-3 py-3 text-center align-middle">Ore/Min</th>
-                                    <th className="px-3 py-3 text-center align-middle">Su 40</th>
+                                    <th className="px-3 py-3 text-center align-middle">
+                                        {onLimitShortLabel(annualHoursLimit.value)}
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-slate-700">

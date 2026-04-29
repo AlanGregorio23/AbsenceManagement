@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use DateTimeImmutable;
 use RuntimeException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -72,6 +73,7 @@ class SchoolHolidayPdfExtractor
         $metadata = is_array($decoded['metadata'] ?? null)
             ? $decoded['metadata']
             : [];
+        $metadata = $this->normalizeCalendarMetadata($metadata);
 
         return [
             'dates' => $dates,
@@ -114,6 +116,55 @@ class SchoolHolidayPdfExtractor
         throw new RuntimeException(
             'Interprete Python non trovato. Installa Python 3 e ricrea scripts/.venv.'
         );
+    }
+
+    /**
+     * @param  array<string,mixed>  $metadata
+     * @return array<string,mixed>
+     */
+    private function normalizeCalendarMetadata(array $metadata): array
+    {
+        $schoolYear = trim((string) ($metadata['school_year'] ?? ''));
+        if (preg_match('/^\d{4}-\d{4}$/', $schoolYear) !== 1) {
+            throw new RuntimeException('Anno scolastico non rilevato nel PDF calendario.');
+        }
+
+        [$startYear, $endYear] = array_map('intval', explode('-', $schoolYear, 2));
+        if ($endYear !== $startYear + 1) {
+            throw new RuntimeException('Anno scolastico non coerente nel PDF calendario.');
+        }
+
+        $firstSemesterEnd = $this->normalizeMetadataDate(
+            $metadata['first_semester_end_date'] ?? null,
+            'fine primo semestre'
+        );
+        $secondSemesterStart = $this->normalizeMetadataDate(
+            $metadata['second_semester_start_date'] ?? null,
+            'inizio secondo semestre'
+        );
+
+        $metadata['school_year'] = $schoolYear;
+        $metadata['school_year_start'] = $startYear;
+        $metadata['school_year_end'] = $endYear;
+        $metadata['first_semester_end_date'] = $firstSemesterEnd;
+        $metadata['second_semester_start_date'] = $secondSemesterStart;
+
+        return $metadata;
+    }
+
+    private function normalizeMetadataDate(mixed $value, string $label): string
+    {
+        $date = trim((string) ($value ?? ''));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            throw new RuntimeException("Data {$label} non rilevata nel PDF calendario.");
+        }
+
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if ($parsed === false || $parsed->format('Y-m-d') !== $date) {
+            throw new RuntimeException("Data {$label} non valida nel PDF calendario.");
+        }
+
+        return $date;
     }
 
     private function ensureProjectVirtualEnvironment(): void

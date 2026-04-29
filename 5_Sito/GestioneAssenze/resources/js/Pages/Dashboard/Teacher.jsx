@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import DashboardStatCard from '@/Components/DashboardStatCard';
 import { Head, Link } from '@inertiajs/react';
 
 const fallbackStats = [
@@ -9,6 +10,12 @@ const fallbackStats = [
 ];
 
 const fallbackRows = [];
+const statDecorations = [
+    { icon: 'requests', tone: 'sky' },
+    { icon: 'signature', tone: 'amber' },
+    { icon: 'calendar', tone: 'emerald' },
+    { icon: 'warning', tone: 'rose' },
+];
 
 const ActionGlyph = ({ actionKey, className = 'h-3.5 w-3.5' }) => {
     if (actionKey === 'edit') {
@@ -82,14 +89,26 @@ const requestHref = (row, actionKey = null) => {
     });
 };
 
-const RequestActions = ({ row, wrap = false }) => {
+const RequestOpenButton = ({ row }) => (
+    <Link
+        href={requestHref(row)}
+        className="btn-soft-primary whitespace-nowrap"
+    >
+        Apri pratica
+    </Link>
+);
+
+const RequestOperationButtons = ({ row }) => {
     const operations = requestOperationLabels(row);
     const editAction = operations.find((action) => action.key === 'edit') ?? null;
     const deleteAction = operations.find((action) => action.key === 'delete') ?? null;
-    const actionLayout = wrap ? 'flex-wrap' : 'flex-nowrap';
+
+    if (!editAction && !deleteAction) {
+        return <span className="text-xs text-slate-400">-</span>;
+    }
 
     return (
-        <div className={`inline-flex ${actionLayout} items-center justify-center gap-1.5`}>
+        <div className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
             {editAction && (
                 <Link
                     href={requestHref(row, editAction.key)}
@@ -110,12 +129,6 @@ const RequestActions = ({ row, wrap = false }) => {
                     <ActionGlyph actionKey={deleteAction.key} className="h-4 w-4" />
                 </Link>
             )}
-            <Link
-                href={requestHref(row)}
-                className="btn-soft-neutral whitespace-nowrap"
-            >
-                Apri pratica
-            </Link>
         </div>
     );
 };
@@ -130,21 +143,15 @@ export default function TeacherDashboard({
 
             <div className="space-y-6">
                 <section className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-                    {stats.map((stat) => (
-                        <div
+                    {stats.map((stat, index) => (
+                        <DashboardStatCard
                             key={stat.label}
-                            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                        >
-                            <p className="text-sm text-slate-500">{stat.label}</p>
-                            <div className="mt-3 flex items-end justify-between gap-3">
-                                <span className="shrink-0 text-2xl font-semibold text-slate-900">
-                                    {stat.value}
-                                </span>
-                                <span className="min-w-0 rounded-full bg-slate-100 px-3 py-1 text-center text-xs leading-5 text-slate-500">
-                                    {stat.helper}
-                                </span>
-                            </div>
-                        </div>
+                            label={stat.label}
+                            value={stat.value}
+                            helper={stat.helper}
+                            icon={statDecorations[index % statDecorations.length].icon}
+                            tone={statDecorations[index % statDecorations.length].tone}
+                        />
                     ))}
                 </section>
 
@@ -226,15 +233,16 @@ export default function TeacherDashboard({
                                     </div>
                                 </div>
 
-                                <div className="mt-4">
-                                    <RequestActions row={row} wrap />
+                                <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                                    <RequestOperationButtons row={row} />
+                                    <RequestOpenButton row={row} />
                                 </div>
                             </article>
                         ))}
                     </div>
 
                     <div className="mt-4 hidden min-w-0 overflow-x-auto 2xl:block">
-                        <table className="w-full min-w-[1180px] text-sm">
+                        <table className="w-full min-w-[1240px] text-sm">
                             <thead className="text-xs uppercase tracking-wide text-slate-400">
                                 <tr>
                                     <th className="px-3 py-3 text-center align-middle">ID</th>
@@ -246,7 +254,8 @@ export default function TeacherDashboard({
                                     <th className="px-3 py-3 text-center align-middle">Scadenza</th>
                                     <th className="px-3 py-3 text-center align-middle">Obbligo certificato</th>
                                     <th className="px-3 py-3 text-center align-middle">Stato</th>
-                                    <th className="w-[13rem] px-3 py-3 text-center align-middle">Azioni</th>
+                                    <th className="w-[6rem] px-3 py-3 text-center align-middle">Operazioni</th>
+                                    <th className="w-[9rem] px-3 py-3 text-center align-middle">Pratica</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -254,7 +263,7 @@ export default function TeacherDashboard({
                                     <tr>
                                         <td
                                             className="px-3 py-6 text-center text-sm text-slate-400"
-                                            colSpan={10}
+                                            colSpan={11}
                                         >
                                             Nessuna richiesta da gestire.
                                         </td>
@@ -303,7 +312,10 @@ export default function TeacherDashboard({
                                             </span>
                                         </td>
                                         <td className="px-3 py-3 text-center align-middle">
-                                            <RequestActions row={row} />
+                                            <RequestOperationButtons row={row} />
+                                        </td>
+                                        <td className="px-3 py-3 text-center align-middle">
+                                            <RequestOpenButton row={row} />
                                         </td>
                                     </tr>
                                 ))}

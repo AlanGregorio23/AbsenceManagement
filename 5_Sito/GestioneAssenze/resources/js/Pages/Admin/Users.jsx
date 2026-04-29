@@ -32,7 +32,6 @@ export default function Users({
     pagination = null,
     filters = {},
     roleOptions = [],
-    classOptions = [],
 }) {
     const { auth } = usePage().props;
     const authUserId = auth?.user?.id ?? null;
@@ -335,18 +334,12 @@ export default function Users({
                     </label>
                     <label className="flex flex-col gap-2">
                         Classe
-                        <select
+                        <input
                             className={inputClass}
+                            placeholder="Es. INF4A"
                             value={classFilter}
                             onChange={(event) => setClassFilter(event.target.value)}
-                        >
-                            <option value="">Tutte</option>
-                            {classOptions.map((className) => (
-                                <option key={className} value={className}>
-                                    {className}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </label>
                 </div>
 
@@ -385,26 +378,40 @@ export default function Users({
                                     <td className="py-3 text-center align-middle">{user.ruolo}</td>
                                     <td className="py-3 text-center align-middle text-xs text-slate-600">
                                         {toSafeArray(user.tutori).length > 0 ? (
-                                            <div className="mx-auto w-fit space-y-1 text-left">
-                                                <p>
-                                                    {`${user.tutori[0].name} (${user.tutori[0].email})${
-                                                        toSafeArray(user.tutori).length > 1
-                                                            ? ` +${toSafeArray(user.tutori).length - 1}`
-                                                            : ''
-                                                    }`}
-                                                </p>
-                                                <p className="text-[11px] text-slate-500">
-                                                    Attivi: {user.tutori_attivi ?? 0} | Inattivi:{' '}
-                                                    {user.tutori_inattivi ?? 0}
-                                                </p>
+                                            <div className="mx-auto flex max-w-[220px] items-center justify-center gap-1.5">
+                                                <span
+                                                    className="max-w-[110px] truncate text-slate-700"
+                                                    title={`${user.tutori[0].name} (${user.tutori[0].email})`}
+                                                >
+                                                    {user.tutori[0].name}
+                                                </span>
+                                                {toSafeArray(user.tutori).length > 1 && (
+                                                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                                                        +{toSafeArray(user.tutori).length - 1}
+                                                    </span>
+                                                )}
+                                                <span
+                                                    className="rounded-full bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700"
+                                                    title={`Attivi: ${user.tutori_attivi ?? 0} | Inattivi: ${user.tutori_inattivi ?? 0}`}
+                                                >
+                                                    {user.tutori_attivi ?? 0}/{toSafeArray(user.tutori).length}
+                                                </span>
                                                 {user.ruolo_code === 'student' &&
                                                     user.is_adult && (
-                                                        <p className="text-[11px] text-slate-500">
-                                                            Info tutori precedenti:{' '}
-                                                            {user.notify_previous_guardians_enabled
-                                                                ? 'Attiva'
-                                                                : 'Disattivata'}
-                                                        </p>
+                                                        <span
+                                                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                                                                user.notify_previous_guardians_enabled
+                                                                    ? 'bg-emerald-50 text-emerald-700'
+                                                                    : 'bg-slate-100 text-slate-500'
+                                                            }`}
+                                                            title={`Info tutori precedenti: ${
+                                                                user.notify_previous_guardians_enabled
+                                                                    ? 'Attiva'
+                                                                    : 'Disattivata'
+                                                            }`}
+                                                        >
+                                                            Info
+                                                        </span>
                                                     )}
                                             </div>
                                         ) : (

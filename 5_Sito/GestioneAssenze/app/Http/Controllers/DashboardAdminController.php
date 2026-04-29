@@ -13,6 +13,7 @@ use App\Models\OperationLog;
 use App\Models\SchoolClass;
 use App\Models\User;
 use App\Services\InactiveGuardianNotificationResolver;
+use App\Services\PasswordSetupService;
 use App\Support\NotificationTypeRegistry;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -28,6 +29,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class DashboardAdminController extends BaseController
 {
     private const LOG_EXPORT_MAX_ROWS = 200000;
+
+    private const GAGI_CSV_FORMAT_ERROR = 'Il file non e un CSV esportato da Gagi nel formato atteso.';
 
     private const MANAGED_USER_ROLES = [
         'student',
@@ -146,8 +149,25 @@ class DashboardAdminController extends BaseController
         }
 
         if ($classFilter !== '') {
-            $usersQuery->whereHas('classes', function ($query) use ($classFilter) {
-                $query->where('classes.name', $classFilter);
+            $classFilterLike = '%'.strtolower($classFilter).'%';
+            $parsedClassFilter = $this->parseClassCode($classFilter);
+
+            $usersQuery->whereHas('classes', function ($query) use ($classFilterLike, $parsedClassFilter) {
+                $query->where(function ($classQuery) use ($classFilterLike, $parsedClassFilter) {
+                    $classQuery
+                        ->whereRaw('LOWER(classes.name) LIKE ?', [$classFilterLike])
+                        ->orWhereRaw('LOWER(COALESCE(classes.section, \'\')) LIKE ?', [$classFilterLike])
+                        ->orWhereRaw('LOWER(COALESCE(classes.year, \'\')) LIKE ?', [$classFilterLike]);
+
+                    if ($parsedClassFilter !== null) {
+                        $classQuery->orWhere(function ($parsedQuery) use ($parsedClassFilter) {
+                            $parsedQuery
+                                ->whereRaw('LOWER(COALESCE(classes.section, \'\')) = ?', [strtolower((string) $parsedClassFilter['section'])])
+                                ->where('classes.year', (string) $parsedClassFilter['year'])
+                                ->whereRaw('LOWER(COALESCE(classes.name, \'\')) = ?', [strtolower((string) $parsedClassFilter['name'])]);
+                        });
+                    }
+                });
             });
         }
 
@@ -203,7 +223,7 @@ class DashboardAdminController extends BaseController
                     'birth_date' => $user->birth_date?->toDateString(),
                     'ruolo_code' => $role,
                     'ruolo' => $label,
-                    'classe' => $className?->name ?? '-',
+                    'classe' => $className?->class_code ?: '-',
                     'stato' => $stato,
                     'tutore_legale' => $guardianContact ? [
                         'id' => $guardianContact['id'],
@@ -588,12 +608,20 @@ class DashboardAdminController extends BaseController
         }
 
         if ($teacherFilter !== '') {
-            $teacherId = (int) $teacherFilter;
-            if ($teacherId > 0) {
-                $classesQuery->whereHas('teachers', function ($query) use ($teacherId) {
-                    $query->where('users.id', $teacherId);
+            $teacherTerms = collect(preg_split('/\s+/', Str::lower($teacherFilter)) ?: [])
+                ->filter();
+
+            $classesQuery->whereHas('teachers', function ($query) use ($teacherTerms) {
+                $teacherTerms->each(function ($term) use ($query) {
+                    $searchLike = '%'.$term.'%';
+
+                    $query->where(function ($teacherQuery) use ($searchLike) {
+                        $teacherQuery
+                            ->whereRaw('LOWER(users.name) LIKE ?', [$searchLike])
+                            ->orWhereRaw('LOWER(users.surname) LIKE ?', [$searchLike]);
+                    });
                 });
-            }
+            });
         }
 
         $paginator = $classesQuery
@@ -1313,16 +1341,25 @@ class DashboardAdminController extends BaseController
         return back()->with('success', 'Utente creato. Email impostazione password inviata.');
     }
 
-    public function StoreUserFromCsv(AddUserCsvRequest $request)
+    public function StoreUserFromCsv(AddUserCsvRequest $request, PasswordSetupService $passwordSetupService)
     {
         $request->validated();
         $file = $request->file('file');
-        $handle = fopen($file->getRealPath(), 'r');
+        $filePath = $file->getRealPath();
         $createdUsers = 0;
         $updatedUsers = 0;
         $passwordSetupEmailsSent = 0;
         $passwordSetupEmailsFailed = [];
 
+        if (! is_string($filePath) || $filePath === '') {
+            return back()->withErrors(['file' => 'Impossibile leggere il file caricato.']);
+        }
+
+        if ($this->isBinaryOrSpreadsheetFile($filePath)) {
+            return back()->withErrors(['file' => self::GAGI_CSV_FORMAT_ERROR]);
+        }
+
+        $handle = fopen($filePath, 'r');
         if ($handle === false) {
             return back()->withErrors(['file' => 'Impossibile leggere il file caricato.']);
         }
@@ -1335,8 +1372,19 @@ class DashboardAdminController extends BaseController
         }
 
         $delimiter = $this->detectDelimiter($headerLine);
+        if ($delimiter !== ';') {
+            fclose($handle);
+
+            return back()->withErrors(['file' => self::GAGI_CSV_FORMAT_ERROR]);
+        }
+
         $headerColumns = str_getcsv($headerLine, $delimiter);
         $isGagiFormat = $this->isGagiCsvHeader($headerColumns);
+        if (! $isGagiFormat) {
+            fclose($handle);
+
+            return back()->withErrors(['file' => self::GAGI_CSV_FORMAT_ERROR]);
+        }
 
         while (($row = fgetcsv($handle, 1000, $delimiter)) !== false) {
             if (! array_filter($row)) {
@@ -1398,9 +1446,8 @@ class DashboardAdminController extends BaseController
                 $status = null;
 
                 try {
-                    $status = Password::broker()->sendResetLink([
-                        'email' => $user->email,
-                    ]);
+                    $passwordSetupService->sendSetupLink($user);
+                    $status = Password::RESET_LINK_SENT;
                 } catch (\Throwable) {
                     $status = null;
                 }
@@ -1475,19 +1522,38 @@ class DashboardAdminController extends BaseController
 
     private function isGagiCsvHeader(array $headerColumns): bool
     {
-        $normalized = strtolower(
-            implode(
-                '|',
-                array_map(
-                    fn ($column) => trim((string) $column),
-                    $headerColumns
-                )
-            )
+        $normalizedColumns = array_map(
+            fn ($column) => $this->normalizeCsvHeaderColumn($column),
+            $headerColumns
         );
 
-        return str_contains($normalized, 'allievo')
-            && str_contains($normalized, 'data di nascita')
-            && str_contains($normalized, 'networkid');
+        return count($normalizedColumns) >= 7
+            && ($normalizedColumns[0] ?? null) === 'id'
+            && ($normalizedColumns[1] ?? null) === 'allievo'
+            && ($normalizedColumns[2] ?? null) === 'data di nascita'
+            && ($normalizedColumns[4] ?? null) === 'classe'
+            && ($normalizedColumns[6] ?? null) === 'networkid';
+    }
+
+    private function normalizeCsvHeaderColumn(mixed $column): string
+    {
+        $value = strtolower(trim((string) $column));
+        $value = preg_replace('/^\xEF\xBB\xBF/', '', $value) ?? $value;
+        $value = preg_replace('/\s+/', ' ', $value) ?? $value;
+
+        return trim($value);
+    }
+
+    private function isBinaryOrSpreadsheetFile(string $filePath): bool
+    {
+        $sample = file_get_contents($filePath, false, null, 0, 512);
+        if ($sample === false) {
+            return false;
+        }
+
+        return str_starts_with($sample, "PK\x03\x04")
+            || str_starts_with($sample, "\xD0\xCF\x11\xE0")
+            || str_contains($sample, "\0");
     }
 
     private function parseImportedFullName(string $rawFullName, bool $surnameFirst): array
@@ -1602,7 +1668,7 @@ class DashboardAdminController extends BaseController
             try {
                 return Carbon::createFromFormat($format, $normalized)->toDateString();
             } catch (\Throwable) {
-                // Prova formato successivo.
+                // prova formato successivo.
             }
         }
 
@@ -1712,7 +1778,7 @@ class DashboardAdminController extends BaseController
         $userName = trim($userName);
         $domain = trim($domain);
 
-        if ($userName === '' || $domain === '') {
+        if ($userName === '' || $domain === '' || ! str_contains($domain, '.')) {
             return null;
         }
 
@@ -1720,6 +1786,10 @@ class DashboardAdminController extends BaseController
             $domain = 'student.'.$domain;
         }
 
-        return $userName.'@'.$domain;
+        $normalizedEmail = $userName.'@'.$domain;
+
+        return filter_var($normalizedEmail, FILTER_VALIDATE_EMAIL) !== false
+            ? $normalizedEmail
+            : null;
     }
 }

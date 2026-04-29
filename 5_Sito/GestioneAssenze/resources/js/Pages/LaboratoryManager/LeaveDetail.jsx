@@ -1,19 +1,20 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { resolveAnnualHoursLimitLabels } from '@/annualHoursLimit';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
 const inputClass =
     'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
 
 const actionStyles = {
-    pre_approve: 'bg-amber-400 text-slate-900',
-    approve: 'bg-lime-500 text-white',
-    reject: 'bg-red-500 text-white',
-    forward_to_management: 'bg-violet-600 text-white',
-    documentation: 'bg-sky-500 text-white',
-    reject_documentation: 'bg-rose-500 text-white',
-    edit: 'bg-slate-600 text-white',
-    delete: 'bg-rose-600 text-white',
+    pre_approve: 'btn-soft-warning',
+    approve: 'btn-soft-success',
+    reject: 'btn-soft-danger',
+    forward_to_management: 'btn-soft-info',
+    documentation: 'btn-soft-info',
+    reject_documentation: 'btn-soft-danger',
+    edit: 'btn-soft-icon',
+    delete: 'btn-soft-icon-danger',
 };
 
 const ActionGlyph = ({ actionKey, className = 'h-3.5 w-3.5' }) => {
@@ -43,6 +44,8 @@ export default function LeaveDetail({
     role = '',
     reasons = [],
 }) {
+    const { props } = usePage();
+    const annualHoursLimit = resolveAnnualHoursLimitLabels(props);
     const modalActions = [
         'pre_approve',
         'approve',
@@ -101,6 +104,7 @@ export default function LeaveDetail({
 
     const documentationPreviewUrl = item?.documentation?.viewer_url ?? null;
     const guardianSignaturePreviewUrl = item?.guardian_signature?.viewer_url ?? null;
+    const approvalCommentRequired = !item?.documentation;
     const reasonOptions = useMemo(() => {
         if (!Array.isArray(reasons)) {
             return [];
@@ -440,7 +444,7 @@ export default function LeaveDetail({
                                         type="button"
                                         title="Elimina definitivamente"
                                         aria-label="Elimina definitivamente"
-                                        className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-600 p-0 text-[11px] font-semibold text-white"
+                                        className="btn-soft-icon-danger"
                                         onClick={() => openAction('delete')}
                                     >
                                         <ActionGlyph actionKey="delete" className="h-4 w-4" />
@@ -463,9 +467,12 @@ export default function LeaveDetail({
                                     </p>
                                 )}
                                 {actions.length > 0 && (
-                                    <div className="flex w-full flex-wrap gap-1">
+                                    <div className="flex w-full flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
                                         {actions.map((action) => {
                                             const iconOnly = action.key === 'edit' || action.key === 'delete';
+                                            const buttonClass = iconOnly
+                                                ? actionStyles[action.key]
+                                                : `${actionStyles[action.key]} whitespace-nowrap`;
 
                                             return (
                                                 <button
@@ -473,11 +480,7 @@ export default function LeaveDetail({
                                                     type="button"
                                                     title={action.label}
                                                     aria-label={action.label}
-                                                    className={`rounded-md text-[11px] font-semibold ${actionStyles[action.key]} ${
-                                                        iconOnly
-                                                            ? 'flex h-7 w-7 items-center justify-center p-0'
-                                                            : 'px-2 py-1'
-                                                    }`}
+                                                    className={`shrink-0 ${buttonClass}`}
                                                     onClick={() => openAction(action.key)}
                                                 >
                                                     {iconOnly ? (
@@ -497,7 +500,7 @@ export default function LeaveDetail({
                                     <form onSubmit={submitResendGuardianEmail}>
                                         <button
                                             type="submit"
-                                            className="rounded-md bg-indigo-500 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-70"
+                                            className="btn-soft-info whitespace-nowrap"
                                             disabled={resendGuardianEmailForm.processing}
                                         >
                                             Reinvia email conferma tutore
@@ -574,7 +577,7 @@ export default function LeaveDetail({
                                 <div className="mt-3 flex justify-end">
                                     <button
                                         type="button"
-                                        className="rounded-md bg-rose-500 px-2 py-1 text-[11px] font-semibold text-white"
+                                        className="btn-soft-danger"
                                         onClick={() => openAction('reject_documentation')}
                                     >
                                         Rifiuta documentazione
@@ -623,7 +626,7 @@ export default function LeaveDetail({
                             {activeAction === 'pre_approve' && availableActionKeys.has('pre_approve') && (
                                 <form onSubmit={submitPreApprove} className="mt-4 space-y-3">
                                     <label className="block text-xs font-semibold text-slate-700">
-                                        Commento override (facoltativo)
+                                        Commento override obbligatorio
                                     </label>
                                     <textarea
                                         rows={4}
@@ -658,7 +661,7 @@ export default function LeaveDetail({
                             {activeAction === 'approve' && availableActionKeys.has('approve') && (
                                 <form onSubmit={submitApprove} className="mt-4 space-y-3">
                                     <label className="block text-xs font-semibold text-slate-700">
-                                        Commento
+                                        {approvalCommentRequired ? 'Commento obbligatorio' : 'Commento (facoltativo)'}
                                     </label>
                                     <textarea
                                         rows={3}
@@ -921,12 +924,12 @@ export default function LeaveDetail({
                                                 editForm.setData('count_hours', event.target.checked)
                                             }
                                         />
-                                        Rientra nelle 40 ore
+                                        {annualHoursLimit.included}
                                     </label>
                                     {!editForm.data.count_hours && (
                                         <>
                                             <label className="block text-xs font-semibold text-slate-700">
-                                                Commento obbligatorio esclusione 40 ore
+                                                {annualHoursLimit.countedNote}
                                             </label>
                                             <textarea
                                                 rows={3}
@@ -942,7 +945,7 @@ export default function LeaveDetail({
                                         </>
                                     )}
                                     <label className="block text-xs font-semibold text-slate-700">
-                                        Commento modifica (facoltativo)
+                                        Commento modifica obbligatorio
                                     </label>
                                     <textarea
                                         rows={3}

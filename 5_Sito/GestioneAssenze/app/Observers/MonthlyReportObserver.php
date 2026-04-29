@@ -77,6 +77,22 @@ class MonthlyReportObserver
                     'mail_subject' => 'Report mensile approvato',
                 ]
             );
+
+            return;
+        }
+
+        if ($currentStatus === MonthlyReport::STATUS_REJECTED) {
+            $this->dispatcher->notifyUser(
+                $report->student,
+                'student_monthly_report_rejected',
+                [
+                    'title' => 'Report mensile rifiutato',
+                    'body' => 'Il report mensile '.$report->monthLabel().' e stato rifiutato. Carica una nuova versione firmata.',
+                    'url' => route('student.monthly-reports'),
+                    'icon' => 'report',
+                    'mail_subject' => 'Report mensile rifiutato',
+                ]
+            );
         }
     }
 }

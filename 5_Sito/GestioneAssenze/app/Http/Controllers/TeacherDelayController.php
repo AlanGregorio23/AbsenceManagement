@@ -7,9 +7,10 @@ use App\Http\Requests\TeacherOptionalCommentRequest;
 use App\Http\Requests\TeacherRejectDelayRequest;
 use App\Http\Requests\TeacherRequiredCommentRequest;
 use App\Http\Requests\TeacherUpdateDelayRequest;
-use App\Mail\DelayRuleTriggeredMail;
+use App\Jobs\Mail\DelayRuleTriggeredMail;
 use App\Models\Delay;
 use App\Models\DelayEmailNotification;
+use App\Models\GuardianDelayConfirmation;
 use App\Models\DelaySetting;
 use App\Models\OperationLog;
 use App\Models\User;
@@ -160,8 +161,7 @@ class TeacherDelayController extends BaseController
         if ($statusCode === Delay::STATUS_REPORTED) {
             $validated = $request->validated();
 
-            $comment = $this->normalizeOptionalComment($validated['comment'] ?? null)
-                ?? 'Ritardo registrato dal docente.';
+            $comment = trim((string) $validated['comment']);
             $registeredDeadline = $deadlineModeActive
                 ? Delay::calculateRegisteredDeadline(Carbon::today(), $delaySetting)
                 : null;
@@ -452,6 +452,35 @@ class TeacherDelayController extends BaseController
             ->with('success', 'Ritardo '.$delayCode.' eliminato definitivamente.');
     }
 
+    public function showGuardianSignature(Request $request, Delay $delay)
+    {
+        $teacher = $request->user();
+        $delay = $this->resolveTeacherDelay($teacher, $delay->id);
+
+        $confirmation = $this->resolveLatestGuardianSignature($delay);
+        $disk = Storage::disk(config('filesystems.default', 'local'));
+
+        if (! $disk->exists($confirmation->signature_path)) {
+            abort(404, 'File firma tutore non trovato.');
+        }
+
+        OperationLog::record(
+            $teacher,
+            'delay.guardian_signature.viewed',
+            'guardian_delay_confirmation',
+            $confirmation->id,
+            [
+                'delay_id' => $delay->id,
+                'guardian_id' => $confirmation->guardian_id,
+                'signature_path' => $confirmation->signature_path,
+            ],
+            'INFO',
+            $request
+        );
+
+        return $disk->response($confirmation->signature_path, basename($confirmation->signature_path));
+    }
+
     public function update(
         TeacherUpdateDelayRequest $request,
         Delay $delay
@@ -552,7 +581,7 @@ class TeacherDelayController extends BaseController
                     ->join('class_teacher', 'class_teacher.class_id', '=', 'class_user.class_id')
                     ->where('class_teacher.teacher_id', $teacher->id);
             })
-            ->with(['student.guardians', 'guardianConfirmations'])
+            ->with(['student.guardians', 'guardianConfirmations.guardian'])
             ->firstOrFail();
     }
 
@@ -570,6 +599,27 @@ class TeacherDelayController extends BaseController
                 || ! empty($confirmation->confirmed_at)
                 || ! empty($confirmation->signed_at);
         });
+    }
+
+    private function resolveLatestGuardianSignature(Delay $delay): GuardianDelayConfirmation
+    {
+        $confirmation = $delay->guardianConfirmations()
+            ->whereNotNull('signature_path')
+            ->where(function ($query) {
+                $query
+                    ->whereIn('status', ['confirmed', 'approved', 'signed'])
+                    ->orWhereNotNull('confirmed_at')
+                    ->orWhereNotNull('signed_at');
+            })
+            ->orderByRaw('COALESCE(confirmed_at, signed_at) asc')
+            ->orderBy('id')
+            ->first();
+
+        if (! $confirmation) {
+            abort(404, 'Nessuna firma tutore disponibile.');
+        }
+
+        return $confirmation;
     }
 
     private function isRegisteredDelayDeadlineExpired(Delay $delay): bool

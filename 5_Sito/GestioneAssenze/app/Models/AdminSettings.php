@@ -28,6 +28,7 @@ class AdminSettings
                 'medical_certificate_days' => $absenceSetting->medical_certificate_days,
                 'medical_certificate_max_days' => $absenceSetting->medical_certificate_max_days,
                 'absence_countdown_days' => $absenceSetting->absence_countdown_days,
+                'pre_expiry_warning_percent' => (int) ($absenceSetting->pre_expiry_warning_percent ?? 80),
                 'leave_request_notice_working_hours' => (int) ($absenceSetting->leave_request_notice_working_hours ?? 24),
             ],
             'reasons' => $absenceReasons->map(fn (AbsenceReason $reason) => [
@@ -45,6 +46,9 @@ class AdminSettings
                 'deadline_business_days' => (int) $delaySetting->deadline_business_days,
                 'justification_business_days' => $delaySetting->justification_business_days,
                 'pre_expiry_warning_business_days' => $delaySetting->pre_expiry_warning_business_days,
+                'pre_expiry_warning_percent' => (int) ($delaySetting->pre_expiry_warning_percent ?? 80),
+                'first_semester_end_day' => $delaySetting->resolvedFirstSemesterEndDay(),
+                'first_semester_end_month' => $delaySetting->resolvedFirstSemesterEndMonth(),
             ],
             'delay_rules' => $delayRules->map(fn (DelayRule $rule) => [
                 'id' => $rule->id,

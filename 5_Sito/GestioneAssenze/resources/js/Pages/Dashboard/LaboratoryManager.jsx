@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import DashboardStatCard from '@/Components/DashboardStatCard';
 import { Head, Link } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const openStatuses = new Set([
     'In valutazione',
@@ -86,6 +87,12 @@ const fallbackRows = [
         can_reject: true,
     },
 ];
+const statDecorations = [
+    { icon: 'requests', tone: 'sky' },
+    { icon: 'signature', tone: 'amber' },
+    { icon: 'warning', tone: 'violet' },
+    { icon: 'docs', tone: 'emerald' },
+];
 
 const ActionGlyph = ({ actionKey, className = 'h-3.5 w-3.5' }) => {
     if (actionKey === 'edit') {
@@ -126,21 +133,61 @@ const leaveActionLabels = (row) => {
     return labels;
 };
 
+const LeaveOpenButton = ({ row }) => (
+    <Link
+        href={route('leaves.show', row.leave_id)}
+        className="btn-soft-primary whitespace-nowrap"
+    >
+        Apri pratica
+    </Link>
+);
+
+const LeaveOperationButtons = ({ row }) => {
+    const actions = leaveActionLabels(row);
+    const editAction = actions.find((action) => action.key === 'edit') ?? null;
+    const deleteAction = actions.find((action) => action.key === 'delete') ?? null;
+
+    if (!editAction && !deleteAction) {
+        return <span className="text-xs text-slate-400">-</span>;
+    }
+
+    return (
+        <div className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap">
+            {editAction && (
+                <Link
+                    href={route('leaves.show', {
+                        leave: row.leave_id,
+                        action: editAction.key,
+                    })}
+                    title={editAction.label}
+                    aria-label={editAction.label}
+                    className="btn-soft-icon"
+                >
+                    <ActionGlyph actionKey="edit" className="h-4 w-4" />
+                </Link>
+            )}
+            {deleteAction && (
+                <Link
+                    href={route('leaves.show', {
+                        leave: row.leave_id,
+                        action: deleteAction.key,
+                    })}
+                    title={deleteAction.label}
+                    aria-label={deleteAction.label}
+                    className="btn-soft-icon-danger"
+                >
+                    <ActionGlyph actionKey="delete" className="h-4 w-4" />
+                </Link>
+            )}
+        </div>
+    );
+};
+
 export default function LaboratoryManagerDashboard({
     stats = fallbackStats,
     rows = fallbackRows,
 }) {
     const [query, setQuery] = useState('');
-    const [showLatePopup, setShowLatePopup] = useState(false);
-
-    const lateRows = useMemo(
-        () => rows.filter((row) => Boolean(row?.richiesta_tardiva)),
-        [rows]
-    );
-
-    useEffect(() => {
-        setShowLatePopup(lateRows.length > 0);
-    }, [lateRows.length]);
 
     const filteredRows = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -167,23 +214,15 @@ export default function LaboratoryManagerDashboard({
 
             <div className="space-y-6">
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    {stats.map((stat) => (
-                        <div
+                    {stats.map((stat, index) => (
+                        <DashboardStatCard
                             key={stat.label}
-                            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-                        >
-                            <p className="text-sm text-slate-500">
-                                {stat.label}
-                            </p>
-                            <div className="mt-3 flex items-end justify-between">
-                                <span className="text-2xl font-semibold text-slate-900">
-                                    {stat.value}
-                                </span>
-                                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
-                                    {stat.helper}
-                                </span>
-                            </div>
-                        </div>
+                            label={stat.label}
+                            value={stat.value}
+                            helper={stat.helper}
+                            icon={statDecorations[index % statDecorations.length].icon}
+                            tone={statDecorations[index % statDecorations.length].tone}
+                        />
                     ))}
                 </section>
 
@@ -221,7 +260,7 @@ export default function LaboratoryManagerDashboard({
                     </div>
 
                     <div className="mt-4 overflow-x-auto">
-                        <table className="w-full min-w-[1580px] text-sm">
+                        <table className="w-full min-w-[1420px] text-sm">
                             <thead className="text-xs uppercase tracking-wide text-slate-400">
                                 <tr>
                                     <th className="px-3 py-3 text-center align-middle">ID</th>
@@ -230,11 +269,10 @@ export default function LaboratoryManagerDashboard({
                                     <th className="px-3 py-3 text-center align-middle">Periodo</th>
                                     <th className="px-3 py-3 text-center align-middle">Motivo</th>
                                     <th className="px-3 py-3 text-center align-middle">Destinazione</th>
-                                    <th className="px-3 py-3 text-center align-middle">Firma tutore</th>
                                     <th className="px-3 py-3 text-center align-middle">Richiesta inviata</th>
                                     <th className="px-3 py-3 text-center align-middle">Stato</th>
-                                    <th className="px-3 py-3 text-center align-middle">Data</th>
-                                    <th className="w-[17rem] px-3 py-3 text-center align-middle">Azioni</th>
+                                    <th className="w-[6rem] px-3 py-3 text-center align-middle">Operazioni</th>
+                                    <th className="w-[9rem] px-3 py-3 text-center align-middle">Pratica</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -242,18 +280,13 @@ export default function LaboratoryManagerDashboard({
                                     <tr>
                                         <td
                                             className="px-3 py-6 text-center text-sm text-slate-400"
-                                            colSpan={11}
+                                            colSpan={10}
                                         >
                                             Nessuna richiesta aperta.
                                         </td>
                                     </tr>
                                 )}
-                                {filteredRows.map((row, index) => {
-                                    const actions = leaveActionLabels(row);
-                                    const editAction = actions.find((action) => action.key === 'edit') ?? null;
-                                    const deleteAction = actions.find((action) => action.key === 'delete') ?? null;
-
-                                    return (
+                                {filteredRows.map((row, index) => (
                                         <tr key={`${row.id}-${index}`} className="transition-colors hover:bg-slate-50/60">
                                             <td className="px-3 py-3 text-center align-middle font-medium text-slate-800 whitespace-nowrap">
                                                 {row.id}
@@ -283,9 +316,6 @@ export default function LaboratoryManagerDashboard({
                                             <td className="px-3 py-3 text-center align-middle">
                                                 {row.destinazione || row.destination || '-'}
                                             </td>
-                                            <td className="px-3 py-3 text-center align-middle text-xs">
-                                                {row.firma_tutore_label}
-                                            </td>
                                             <td className="px-3 py-3 text-center align-middle text-xs whitespace-nowrap">
                                                 <div className="flex flex-col items-center gap-1">
                                                     <span>{row.richiesta_inviata_il || '-'}</span>
@@ -303,75 +333,19 @@ export default function LaboratoryManagerDashboard({
                                                     {row.stato}
                                                 </span>
                                             </td>
-                                            <td className="px-3 py-3 text-center align-middle whitespace-nowrap">{row.data}</td>
                                             <td className="px-3 py-3 text-center align-middle">
-                                                <div className="inline-flex items-center justify-center gap-1.5">
-                                                    {editAction && (
-                                                        <Link
-                                                            href={route('leaves.show', {
-                                                                leave: row.leave_id,
-                                                                action: editAction.key,
-                                                            })}
-                                                            title={editAction.label}
-                                                            aria-label={editAction.label}
-                                                            className="btn-soft-icon"
-                                                        >
-                                                            <ActionGlyph actionKey="edit" className="h-4 w-4" />
-                                                        </Link>
-                                                    )}
-                                                    {deleteAction && (
-                                                        <Link
-                                                            href={route('leaves.show', {
-                                                                leave: row.leave_id,
-                                                                action: deleteAction.key,
-                                                            })}
-                                                            title={deleteAction.label}
-                                                            aria-label={deleteAction.label}
-                                                            className="btn-soft-icon-danger"
-                                                        >
-                                                            <ActionGlyph actionKey="delete" className="h-4 w-4" />
-                                                        </Link>
-                                                    )}
-                                                    <Link
-                                                        href={route('leaves.show', row.leave_id)}
-                                                        className="btn-soft-neutral whitespace-nowrap"
-                                                    >
-                                                        Apri pratica
-                                                    </Link>
-                                                </div>
+                                                <LeaveOperationButtons row={row} />
+                                            </td>
+                                            <td className="px-3 py-3 text-center align-middle">
+                                                <LeaveOpenButton row={row} />
                                             </td>
                                         </tr>
-                                    );
-                                })}
+                                ))}
                             </tbody>
                         </table>
                     </div>
                 </section>
             </div>
-
-            {showLatePopup && lateRows.length > 0 && (
-                <div className="fixed bottom-4 right-4 z-40 w-full max-w-sm rounded-2xl border border-rose-200 bg-white p-4 shadow-2xl">
-                    <p className="text-sm font-semibold text-rose-700">
-                        Richieste congedo tardive
-                    </p>
-                    <p className="mt-1 text-xs text-slate-600">
-                        Trovate {lateRows.length} richieste inviate oltre il termine minimo di ore lavorative.
-                    </p>
-                    <p className="mt-2 text-[11px] text-slate-500">
-                        {lateRows
-                            .slice(0, 3)
-                            .map((item) => `${item.id} (${item.studente})`)
-                            .join(' | ')}
-                    </p>
-                    <button
-                        type="button"
-                        className="mt-3 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        onClick={() => setShowLatePopup(false)}
-                    >
-                        Chiudi
-                    </button>
-                </div>
-            )}
         </AuthenticatedLayout>
     );
 }

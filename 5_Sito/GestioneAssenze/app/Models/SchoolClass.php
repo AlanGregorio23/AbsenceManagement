@@ -54,6 +54,17 @@ class SchoolClass extends Model
             ->first();
     }
 
+    public function getClassCodeAttribute(): string
+    {
+        $parts = array_values(array_filter([
+            strtoupper(trim((string) ($this->section ?? ''))),
+            trim((string) ($this->year ?? '')),
+            strtoupper(trim((string) ($this->name ?? ''))),
+        ], static fn (string $value) => $value !== ''));
+
+        return implode('', $parts);
+    }
+
     public function getClasses()
     {
         $classes = SchoolClass::query()

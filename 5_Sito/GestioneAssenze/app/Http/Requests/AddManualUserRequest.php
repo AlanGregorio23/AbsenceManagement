@@ -27,7 +27,7 @@ class AddManualUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:120'],
             'surname' => ['required', 'string', 'max:120'],
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
+            'email' => ['required', 'string', 'email:filter', 'max:255', Rule::unique(User::class)],
             'role' => ['required', 'string', Rule::in(self::ALLOWED_ROLES)],
             'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
             'class_id' => ['nullable', 'integer', 'exists:classes,id'],

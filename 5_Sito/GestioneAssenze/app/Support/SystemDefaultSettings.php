@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\DelaySetting;
 use App\Models\LoginSecuritySetting;
 use App\Models\OperationLogSetting;
 
@@ -22,6 +23,7 @@ class SystemDefaultSettings
             'medical_certificate_days' => 3,
             'medical_certificate_max_days' => 5,
             'absence_countdown_days' => 10,
+            'pre_expiry_warning_percent' => 80,
             'leave_request_notice_working_hours' => 24,
         ];
     }
@@ -38,6 +40,9 @@ class SystemDefaultSettings
             'deadline_business_days' => 5,
             'justification_business_days' => 5,
             'pre_expiry_warning_business_days' => 1,
+            'pre_expiry_warning_percent' => 80,
+            'first_semester_end_day' => DelaySetting::DEFAULT_FIRST_SEMESTER_END_DAY,
+            'first_semester_end_month' => DelaySetting::DEFAULT_FIRST_SEMESTER_END_MONTH,
         ];
     }
 

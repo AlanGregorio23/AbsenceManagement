@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Mail\AnnualHoursLimitReachedGuardianMail;
+use App\Jobs\Mail\AnnualHoursLimitReachedGuardianMail;
 use App\Models\Absence;
 use App\Models\AbsenceSetting;
 use App\Models\OperationLog;

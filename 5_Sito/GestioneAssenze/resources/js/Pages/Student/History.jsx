@@ -137,6 +137,10 @@ export default function History({ items = [] }) {
                                         <p className="text-slate-700">{row.durata}</p>
                                     </div>
                                     <div>
+                                        <p className="text-slate-400">Scadenza</p>
+                                        <p className="text-slate-700">{row.scadenza ?? '-'}</p>
+                                    </div>
+                                    <div>
                                         <p className="text-slate-400">Certificato</p>
                                         {row.tipo === 'Assenza' ? (
                                             <span className={`mt-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${row.certificato_obbligo_badge ?? 'bg-slate-100 text-slate-700'}`}>
@@ -175,6 +179,7 @@ export default function History({ items = [] }) {
                                     <th className="py-3">Data</th>
                                     <th className="py-3">Tipo</th>
                                     <th className="py-3">Durata</th>
+                                    <th className="py-3">Scadenza</th>
                                     <th className="py-3">Certificato</th>
                                     <th className="py-3">Stato</th>
                                     <th className="py-3">Azioni</th>
@@ -185,7 +190,7 @@ export default function History({ items = [] }) {
                                     <tr>
                                         <td
                                             className="py-6 text-center text-sm text-slate-400"
-                                            colSpan={7}
+                                            colSpan={8}
                                         >
                                             Nessuna richiesta trovata.
                                         </td>
@@ -199,6 +204,7 @@ export default function History({ items = [] }) {
                                         <td className="py-3">{row.data}</td>
                                         <td className="py-3">{row.tipo}</td>
                                         <td className="py-3">{row.durata}</td>
+                                        <td className="py-3">{row.scadenza ?? '-'}</td>
                                         <td className="py-3">
                                             {row.tipo === 'Assenza' ? (
                                                 <span

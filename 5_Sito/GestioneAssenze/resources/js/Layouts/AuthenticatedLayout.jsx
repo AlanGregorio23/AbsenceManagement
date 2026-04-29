@@ -168,7 +168,7 @@ const buildBreadcrumbItems = (component, role, sourceRoute = '', pageProps = {})
         }
 
         return [
-            { label: 'Richieste congedo', href: routeSafe('lab.leaves') },
+            { label: 'Dashboard', href: routeSafe('dashboard') },
             { label: 'Dettaglio congedo' },
         ];
     }
@@ -254,7 +254,6 @@ export default function AuthenticatedLayout({ children, showBreadcrumbs = true }
                 {
                     title: 'Gestione',
                     items: [
-                        { l: 'Richieste congedo', i: 'leave', h: route('lab.leaves'), a: ['lab.leaves'], k: ['congedi', 'richieste', 'workflow'] },
                         { l: 'Nuovo congedo', i: 'leave', h: route('lab.leaves.create'), a: ['lab.leaves.create', 'lab.leaves.store'], k: ['crea congedo', 'inserimento', 'nuova richiesta'] },
                         { l: 'Allievi', i: 'users', h: route('lab.students'), a: ['lab.students'], k: ['studenti'] },
                         { l: 'Storico', i: 'history', h: route('lab.history'), a: ['lab.history'], k: ['cronologia'] },
@@ -449,11 +448,11 @@ export default function AuthenticatedLayout({ children, showBreadcrumbs = true }
                                             href={item.h}
                                             className={`group flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                                                 isActive(item)
-                                                    ? 'bg-slate-100 text-slate-900'
-                                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                                                    ? 'bg-indigo-50 text-indigo-800 shadow-sm hover:bg-indigo-100'
+                                                    : 'text-slate-600 hover:bg-sky-50 hover:text-sky-800'
                                             }`}
                                         >
-                                            <span className={isActive(item) ? 'text-slate-800' : 'text-slate-400 group-hover:text-slate-700'}>
+                                            <span className={isActive(item) ? 'text-indigo-700' : 'text-slate-400 group-hover:text-sky-700'}>
                                                 <Svg d={ICON[item.i]} />
                                             </span>
                                             <span className="truncate">{item.l}</span>

@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Delay;
 use Illuminate\Foundation\Http\FormRequest;
 
 class TeacherRejectDelayRequest extends FormRequest
@@ -14,17 +13,26 @@ class TeacherRejectDelayRequest extends FormRequest
         return $user && $user->hasRole('teacher');
     }
 
+    protected function prepareForValidation(): void
+    {
+        if ($this->has('comment')) {
+            $this->merge([
+                'comment' => trim((string) $this->input('comment')),
+            ]);
+        }
+    }
+
     public function rules(): array
     {
-        $delay = $this->route('delay');
-        $statusCode = $delay instanceof Delay ? Delay::normalizeStatus($delay->status) : null;
-
         return [
-            'comment' => [
-                $statusCode === Delay::STATUS_REPORTED ? 'nullable' : 'required',
-                'string',
-                'max:1000',
-            ],
+            'comment' => ['required', 'string', 'max:1000'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'comment.required' => 'Inserisci un commento obbligatorio.',
         ];
     }
 }

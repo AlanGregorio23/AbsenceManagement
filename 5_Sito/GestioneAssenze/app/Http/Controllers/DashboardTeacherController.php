@@ -6,6 +6,7 @@ use App\Models\Absence;
 use App\Models\AbsenceReason;
 use App\Models\Delay;
 use App\Models\GuardianAbsenceConfirmation;
+use App\Models\GuardianDelayConfirmation;
 use App\Models\OperationLog;
 use App\Models\SchoolClass;
 use App\Models\User;
@@ -332,13 +333,27 @@ class DashboardTeacherController extends BaseController
                     ->join('class_teacher', 'class_teacher.class_id', '=', 'class_user.class_id')
                     ->where('class_teacher.teacher_id', $user->id);
             })
+            ->with(['guardianConfirmations.guardian'])
             ->firstOrFail();
+
+        $firstGuardianSignature = $this->resolveFirstSignedDelayGuardianConfirmation($resolvedDelay);
+        $guardianSignedAt = $firstGuardianSignature?->confirmed_at ?? $firstGuardianSignature?->signed_at;
 
         $item['classe'] = $studentClassMap[$item['student_id']] ?? '-';
         $item['delay_date'] = optional($resolvedDelay->delay_datetime)->toDateString();
         $item['minutes'] = (int) ($resolvedDelay->minutes ?? 0);
         $item['motivation'] = (string) ($resolvedDelay->notes ?? '');
         $item['teacher_comment'] = (string) ($resolvedDelay->teacher_comment ?? '');
+        $item['guardian_signature'] = $firstGuardianSignature ? [
+            'confirmation_id' => $firstGuardianSignature->id,
+            'guardian_name' => $this->resolveDelaySignerName($firstGuardianSignature),
+            'signed_at' => $guardianSignedAt?->format('d M Y H:i'),
+            'viewer_url' => route('teacher.delays.guardian-signature.view', [
+                'delay' => $resolvedDelay->id,
+            ]),
+            'source' => 'delay',
+            'source_label' => 'Firma richiesta ritardo',
+        ] : null;
 
         $allowedActions = [
             'approve',
@@ -829,6 +844,39 @@ class DashboardTeacherController extends BaseController
     }
 
     private function resolveSignerName(GuardianAbsenceConfirmation $confirmation): string
+    {
+        $notes = json_decode((string) ($confirmation->notes ?? ''), true);
+        $signerName = is_array($notes) ? trim((string) ($notes['signer_name'] ?? '')) : '';
+
+        if ($signerName !== '') {
+            return $signerName;
+        }
+
+        return trim((string) ($confirmation->guardian?->name ?? '-')) ?: '-';
+    }
+
+    private function resolveFirstSignedDelayGuardianConfirmation(Delay $delay): ?GuardianDelayConfirmation
+    {
+        return $delay->guardianConfirmations
+            ->filter(fn (GuardianDelayConfirmation $confirmation) => $this->isDelayGuardianConfirmationSigned($confirmation))
+            ->sortBy(function (GuardianDelayConfirmation $confirmation) {
+                $signedAt = $confirmation->confirmed_at ?? $confirmation->signed_at;
+
+                return $signedAt?->timestamp ?? PHP_INT_MAX;
+            })
+            ->first();
+    }
+
+    private function isDelayGuardianConfirmationSigned(GuardianDelayConfirmation $confirmation): bool
+    {
+        $status = strtolower(trim((string) ($confirmation->status ?? '')));
+
+        return in_array($status, ['confirmed', 'approved', 'signed'], true)
+            || ! empty($confirmation->confirmed_at)
+            || ! empty($confirmation->signed_at);
+    }
+
+    private function resolveDelaySignerName(GuardianDelayConfirmation $confirmation): string
     {
         $notes = json_decode((string) ($confirmation->notes ?? ''), true);
         $signerName = is_array($notes) ? trim((string) ($notes['signer_name'] ?? '')) : '';

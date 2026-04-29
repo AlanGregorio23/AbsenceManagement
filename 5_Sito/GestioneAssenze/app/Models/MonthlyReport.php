@@ -17,6 +17,8 @@ class MonthlyReport extends Model
 
     public const STATUS_APPROVED = 'approved';
 
+    public const STATUS_REJECTED = 'rejected';
+
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
@@ -33,6 +35,9 @@ class MonthlyReport extends Model
         'signed_uploaded_at',
         'approved_at',
         'approved_by',
+        'rejected_at',
+        'rejected_by',
+        'rejection_comment',
         'created_by',
         'failure_reason',
     ];
@@ -47,6 +52,7 @@ class MonthlyReport extends Model
             'last_sent_at' => 'datetime',
             'signed_uploaded_at' => 'datetime',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
         ];
     }
 
@@ -63,6 +69,11 @@ class MonthlyReport extends Model
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function rejecter()
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public function creator()
@@ -82,6 +93,7 @@ class MonthlyReport extends Model
             self::STATUS_SENT => self::STATUS_SENT,
             self::STATUS_SIGNED_UPLOADED => self::STATUS_SIGNED_UPLOADED,
             self::STATUS_APPROVED => self::STATUS_APPROVED,
+            self::STATUS_REJECTED => self::STATUS_REJECTED,
             self::STATUS_FAILED => self::STATUS_FAILED,
             default => self::STATUS_GENERATED,
         };
@@ -94,6 +106,7 @@ class MonthlyReport extends Model
             self::STATUS_SENT => 'Inviato / In attesa upload firmato',
             self::STATUS_SIGNED_UPLOADED => 'Caricato (in attesa approvazione)',
             self::STATUS_APPROVED => 'Approvato / Archiviato',
+            self::STATUS_REJECTED => 'Rifiutato / Ricarica richiesta',
             self::STATUS_FAILED => 'Errore generazione',
             default => 'Generato',
         };
@@ -106,6 +119,7 @@ class MonthlyReport extends Model
             self::STATUS_SENT => 'bg-amber-100 text-amber-700',
             self::STATUS_SIGNED_UPLOADED => 'bg-sky-100 text-sky-700',
             self::STATUS_APPROVED => 'bg-emerald-100 text-emerald-700',
+            self::STATUS_REJECTED => 'bg-rose-100 text-rose-700',
             self::STATUS_FAILED => 'bg-rose-100 text-rose-700',
             default => 'bg-slate-100 text-slate-700',
         };

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TeacherRequiredCommentRequest;
 use App\Models\MonthlyReport;
 use App\Models\OperationLog;
+use App\Models\SchoolClass;
 use App\Models\User;
 use App\Services\MonthlyReportPdfService;
 use App\Services\MonthlyReportService;
@@ -32,7 +34,7 @@ class TeacherMonthlyReportController extends BaseController
                     ->join('class_teacher', 'class_teacher.class_id', '=', 'class_user.class_id')
                     ->where('class_teacher.teacher_id', $teacher->id);
             })
-            ->with(['student', 'schoolClass', 'approver'])
+            ->with(['student.classes', 'schoolClass', 'approver', 'rejecter'])
             ->orderByDesc('report_month')
             ->orderByDesc('id')
             ->get();
@@ -92,10 +94,18 @@ class TeacherMonthlyReportController extends BaseController
     ) {
         $teacher = $request->user();
         $report = $this->resolveTeacherReport($teacher, $monthlyReport->id)
-            ->loadMissing('schoolClass');
+            ->loadMissing(['schoolClass', 'student.classes']);
+        $resolvedClass = $this->resolveReportClass($report);
         $path = MonthlyReportArchivePathBuilder::normalizePath((string) $report->system_pdf_path);
         $disk = Storage::disk('local');
         $shouldRegenerate = $path === '';
+
+        if (! $report->class_id && $resolvedClass) {
+            $report->class_id = $resolvedClass->id;
+            $report->setRelation('schoolClass', $resolvedClass);
+            $report->save();
+            $shouldRegenerate = true;
+        }
 
         if (! $shouldRegenerate && ! MonthlyReportArchivePathBuilder::isArchivePath($path)) {
             $shouldRegenerate = true;
@@ -112,7 +122,7 @@ class TeacherMonthlyReportController extends BaseController
 
         if ($shouldRegenerate && $report->student) {
             $summary = is_array($report->summary_json) ? $report->summary_json : [];
-            $path = $pdfService->generate($report, $report->student, $report->schoolClass, $summary);
+            $path = $pdfService->generate($report, $report->student, $resolvedClass, $summary);
             $report->system_pdf_path = $path;
             $report->save();
         }
@@ -181,9 +191,9 @@ class TeacherMonthlyReportController extends BaseController
         $report = $this->resolveTeacherReport($teacher, $monthlyReport->id);
         $status = MonthlyReport::normalizeStatus($report->status);
 
-        if ($status === MonthlyReport::STATUS_APPROVED) {
+        if (in_array($status, [MonthlyReport::STATUS_APPROVED, MonthlyReport::STATUS_REJECTED], true)) {
             return back()->withErrors([
-                'report' => 'Il report e archiviato: reinvio email non consentito.',
+                'report' => 'Reinvio email non consentito per lo stato attuale del report.',
             ]);
         }
 
@@ -227,6 +237,31 @@ class TeacherMonthlyReportController extends BaseController
         return back()->with('success', 'Report approvato e archiviato.');
     }
 
+    public function reject(
+        TeacherRequiredCommentRequest $request,
+        MonthlyReport $monthlyReport,
+        MonthlyReportService $service
+    ) {
+        $teacher = $request->user();
+        $report = $this->resolveTeacherReport($teacher, $monthlyReport->id);
+        $status = MonthlyReport::normalizeStatus($report->status);
+
+        if ($status !== MonthlyReport::STATUS_SIGNED_UPLOADED) {
+            return back()->withErrors([
+                'report' => 'Puoi rifiutare solo report con file firmato gia caricato.',
+            ]);
+        }
+
+        $service->rejectReport(
+            $report,
+            $teacher,
+            (string) $request->validated('comment'),
+            $request
+        );
+
+        return back()->with('success', 'Report rifiutato. Lo studente puo ricaricare il file firmato.');
+    }
+
     private function resolveTeacherReport(User $teacher, int $reportId): MonthlyReport
     {
         return MonthlyReport::query()
@@ -238,7 +273,7 @@ class TeacherMonthlyReportController extends BaseController
                     ->join('class_teacher', 'class_teacher.class_id', '=', 'class_user.class_id')
                     ->where('class_teacher.teacher_id', $teacher->id);
             })
-            ->with(['student', 'schoolClass', 'approver'])
+            ->with(['student.classes', 'schoolClass', 'approver', 'rejecter'])
             ->firstOrFail();
     }
 
@@ -260,9 +295,7 @@ class TeacherMonthlyReportController extends BaseController
         $status = MonthlyReport::normalizeStatus($report->status);
         $bucket = MonthlyReport::bucketForStatus($status);
         $studentName = trim((string) ($report->student?->name ?? '').' '.(string) ($report->student?->surname ?? ''));
-        $classLabel = $report->schoolClass
-            ? trim((string) $report->schoolClass->year.(string) $report->schoolClass->section) ?: (string) $report->schoolClass->name
-            : '-';
+        $classLabel = $this->resolveClassLabel($report);
 
         return [
             'report_id' => $report->id,
@@ -286,6 +319,11 @@ class TeacherMonthlyReportController extends BaseController
             'approved_by' => $report->approver
                 ? trim((string) ($report->approver->name ?? '').' '.(string) ($report->approver->surname ?? ''))
                 : null,
+            'rejected_at' => $report->rejected_at?->format('d M Y H:i'),
+            'rejected_by' => $report->rejecter
+                ? trim((string) ($report->rejecter->name ?? '').' '.(string) ($report->rejecter->surname ?? ''))
+                : null,
+            'rejection_comment' => (string) ($report->rejection_comment ?? ''),
             'original_download_url' => filled($report->system_pdf_path)
                 ? route('teacher.monthly-reports.download', $report)
                 : null,
@@ -294,9 +332,57 @@ class TeacherMonthlyReportController extends BaseController
                 : null,
             'details_url' => route('teacher.monthly-reports.show', $report),
             'can_resend_email' => filled($report->system_pdf_path)
-                && $status !== MonthlyReport::STATUS_APPROVED,
+                && ! in_array(
+                    $status,
+                    [MonthlyReport::STATUS_APPROVED, MonthlyReport::STATUS_REJECTED],
+                    true
+                ),
             'can_approve' => $status === MonthlyReport::STATUS_SIGNED_UPLOADED,
+            'can_reject' => $status === MonthlyReport::STATUS_SIGNED_UPLOADED,
         ];
+    }
+
+    private function resolveClassLabel(MonthlyReport $report): string
+    {
+        $schoolClass = $this->resolveReportClass($report);
+
+        if (! $schoolClass) {
+            return '-';
+        }
+
+        $compactLabel = trim((string) $schoolClass->year.(string) $schoolClass->section);
+
+        return $compactLabel !== '' ? $compactLabel : ((string) $schoolClass->name ?: '-');
+    }
+
+    private function resolveReportClass(MonthlyReport $report): ?SchoolClass
+    {
+        $schoolClass = $report->schoolClass;
+
+        if ($schoolClass || ! $report->student) {
+            return $schoolClass;
+        }
+
+        $classes = $report->student->classes;
+
+        if ($report->report_month) {
+            $monthStart = $report->report_month->copy()->startOfMonth();
+            $monthEnd = $report->report_month->copy()->endOfMonth();
+
+            $schoolClass = $classes
+                ->first(function (SchoolClass $class) use ($monthStart, $monthEnd) {
+                    $start = $class->pivot?->start_date;
+                    $end = $class->pivot?->end_date;
+
+                    return (! $start || $start <= $monthEnd->toDateString())
+                        && (! $end || $end >= $monthStart->toDateString());
+                });
+        }
+
+        return $schoolClass
+            ?: $classes
+                ->sortByDesc(fn (SchoolClass $class) => $class->pivot?->start_date)
+                ->first();
     }
 
     private function resolveMonthlyReportOperationLabel(string $action): string
@@ -309,6 +395,7 @@ class TeacherMonthlyReportController extends BaseController
             'monthly_report.email.failed' => 'Errore invio email report mensile',
             'monthly_report.signed_uploaded' => 'Upload report firmato',
             'monthly_report.approved' => 'Approvazione report',
+            'monthly_report.rejected' => 'Rifiuto report',
             'monthly_report.downloaded' => 'Download report originale',
             'monthly_report.signed.downloaded' => 'Download report firmato',
             default => ucfirst(str_replace(['.', '_'], ' ', strtolower($action))),

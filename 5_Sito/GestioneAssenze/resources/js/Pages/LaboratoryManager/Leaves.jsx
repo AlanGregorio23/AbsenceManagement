@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { resolveAnnualHoursLimitLabels } from '@/annualHoursLimit';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 
 const fallbackItems = [];
 
@@ -55,18 +56,11 @@ const leaveActionLabels = (row) => {
 };
 
 export default function LaboratoryManagerLeaves({ items = fallbackItems, role = '' }) {
+    const { props } = usePage();
+    const annualHoursLimit = resolveAnnualHoursLimitLabels(props);
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('Tutti');
-    const [showLatePopup, setShowLatePopup] = useState(false);
     const safeItems = Array.isArray(items) ? items : Object.values(items ?? {});
-    const lateItems = useMemo(
-        () => safeItems.filter((row) => Boolean(row?.richiesta_tardiva)),
-        [safeItems]
-    );
-
-    useEffect(() => {
-        setShowLatePopup(lateItems.length > 0);
-    }, [lateItems.length]);
 
     const filteredItems = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -97,7 +91,7 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                             Richieste congedo aperte
                         </h2>
                         <p className="text-sm text-slate-500">
-                            Gestione firma tutore, eccezioni 40 ore e approvazioni.
+                            {`Gestione firma tutore, eccezioni sul ${annualHoursLimit.limit} e approvazioni.`}
                         </p>
                     </div>
                     <div className="flex gap-2">
@@ -126,7 +120,7 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                 </div>
 
                 <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[1540px] text-sm">
+                    <table className="w-full min-w-[1320px] text-sm">
                         <thead className="text-xs uppercase tracking-wide text-slate-400">
                             <tr>
                                 <th className="px-3 py-3 text-center align-middle">ID</th>
@@ -135,11 +129,10 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                                 <th className="px-3 py-3 text-center align-middle">Periodo</th>
                                 <th className="px-3 py-3 text-center align-middle">Motivo</th>
                                 <th className="px-3 py-3 text-center align-middle">Destinazione</th>
-                                <th className="px-3 py-3 text-center align-middle">Firma tutore</th>
                                 <th className="px-3 py-3 text-center align-middle">Inviata il</th>
                                 <th className="px-3 py-3 text-center align-middle">Stato</th>
-                                <th className="w-[28rem] px-3 py-3 text-center align-middle">Azioni</th>
-                                <th className="w-[9rem] px-3 py-3 text-center align-middle">Operazioni</th>
+                                <th className="w-[6rem] px-3 py-3 text-center align-middle">Operazioni</th>
+                                <th className="w-[9rem] px-3 py-3 text-center align-middle">Pratica</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -147,7 +140,7 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                                 <tr>
                                     <td
                                         className="px-3 py-6 text-center text-sm text-slate-400"
-                                        colSpan={11}
+                                        colSpan={10}
                                     >
                                         Nessuna richiesta aperta.
                                     </td>
@@ -172,9 +165,6 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                                     <td className="px-3 py-3 text-center align-middle">
                                         {row.destinazione || row.destination || '-'}
                                     </td>
-                                    <td className="px-3 py-3 text-center align-middle text-xs">
-                                        {row.firma_tutore_label}
-                                    </td>
                                     <td className="px-3 py-3 text-center align-middle text-xs whitespace-nowrap">
                                         <div className="flex flex-col items-center gap-1">
                                             <span>{row.richiesta_inviata_il || '-'}</span>
@@ -193,14 +183,6 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                                         </span>
                                     </td>
                                     <td className="px-3 py-3 text-center align-middle">
-                                        <Link
-                                            href={route('leaves.show', row.leave_id)}
-                                            className="btn-soft-neutral whitespace-nowrap"
-                                        >
-                                            Apri pratica
-                                        </Link>
-                                    </td>
-                                    <td className="px-3 py-3 text-center align-middle">
                                         {(() => {
                                             const actions = leaveActionLabels(row);
                                             const editAction = actions.find((action) => action.key === 'edit') ?? null;
@@ -211,7 +193,7 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                                             }
 
                                             return (
-                                                <div className="inline-flex shrink-0 items-center gap-2">
+                                                <div className="inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap">
                                                     {editAction ? (
                                                         <Link
                                                             href={route('leaves.show', {
@@ -246,36 +228,20 @@ export default function LaboratoryManagerLeaves({ items = fallbackItems, role = 
                                             );
                                         })()}
                                     </td>
+                                    <td className="px-3 py-3 text-center align-middle">
+                                        <Link
+                                            href={route('leaves.show', row.leave_id)}
+                                            className="btn-soft-primary whitespace-nowrap"
+                                        >
+                                            Apri pratica
+                                        </Link>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
             </section>
-
-            {showLatePopup && lateItems.length > 0 && (
-                <div className="fixed bottom-4 right-4 z-40 w-full max-w-sm rounded-2xl border border-rose-200 bg-white p-4 shadow-2xl">
-                    <p className="text-sm font-semibold text-rose-700">
-                        Attenzione: richieste congedo tardive
-                    </p>
-                    <p className="mt-1 text-xs text-slate-600">
-                        Trovate {lateItems.length} richieste inviate oltre il termine minimo di ore lavorative.
-                    </p>
-                    <p className="mt-2 text-[11px] text-slate-500">
-                        {lateItems
-                            .slice(0, 3)
-                            .map((item) => `${item.id} (${item.studente})`)
-                            .join(' | ')}
-                    </p>
-                    <button
-                        type="button"
-                        className="mt-3 rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                        onClick={() => setShowLatePopup(false)}
-                    >
-                        Chiudi
-                    </button>
-                </div>
-            )}
         </AuthenticatedLayout>
     );
 }

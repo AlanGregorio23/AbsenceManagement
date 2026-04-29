@@ -13,10 +13,13 @@ class WorkingCalendar
     private static function loadHolidaySet(): array
     {
         return SchoolHoliday::query()
-            ->pluck('holiday_date')
-            ->map(fn ($value) => Carbon::parse((string) $value)->toDateString())
-            ->reduce(function (array $carry, string $date): array {
-                $carry[$date] = true;
+            ->get(['holiday_date'])
+            ->reduce(function (array $carry, SchoolHoliday $holiday): array {
+                $date = $holiday->holiday_date;
+                $dateKey = $date instanceof Carbon
+                    ? $date->toDateString()
+                    : Carbon::parse((string) $date)->toDateString();
+                $carry[$dateKey] = true;
 
                 return $carry;
             }, []);

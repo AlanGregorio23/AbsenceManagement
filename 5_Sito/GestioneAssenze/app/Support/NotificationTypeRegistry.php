@@ -19,6 +19,12 @@ class NotificationTypeRegistry
                 'default_email_enabled' => false,
             ],
             [
+                'key' => 'student_absence_deadline_warning',
+                'label' => 'Scadenza assenza in avvicinamento',
+                'description' => 'Email quando una tua assenza si avvicina alla scadenza di completamento.',
+                'default_email_enabled' => true,
+            ],
+            [
                 'key' => 'student_delay_approved',
                 'label' => 'Ritardo accettato',
                 'description' => 'Email quando un tuo ritardo viene giustificato.',
@@ -29,6 +35,12 @@ class NotificationTypeRegistry
                 'label' => 'Ritardo registrato',
                 'description' => 'Email quando un tuo ritardo viene registrato nel conteggio.',
                 'default_email_enabled' => false,
+            ],
+            [
+                'key' => 'student_delay_deadline_warning',
+                'label' => 'Scadenza ritardo in avvicinamento',
+                'description' => 'Email quando un tuo ritardo si avvicina alla scadenza di completamento.',
+                'default_email_enabled' => true,
             ],
             [
                 'key' => 'student_leave_documentation_requested',
@@ -64,6 +76,12 @@ class NotificationTypeRegistry
                 'key' => 'student_monthly_report_approved',
                 'label' => 'Report mensile approvato',
                 'description' => 'Email quando il report mensile firmato viene approvato.',
+                'default_email_enabled' => false,
+            ],
+            [
+                'key' => 'student_monthly_report_rejected',
+                'label' => 'Report mensile rifiutato',
+                'description' => 'Email quando il report mensile firmato viene rifiutato e devi ricaricarlo.',
                 'default_email_enabled' => false,
             ],
             [
@@ -167,6 +185,14 @@ class NotificationTypeRegistry
 
     public static function defaultEmailEnabled(?string $role, string $eventKey): bool
     {
+        foreach (self::forRole($role) as $definition) {
+            if ((string) ($definition['key'] ?? '') !== $eventKey) {
+                continue;
+            }
+
+            return (bool) ($definition['default_email_enabled'] ?? false);
+        }
+
         return false;
     }
 }

@@ -7,12 +7,12 @@ const inputClass =
     'w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100';
 
 const actionStyles = {
-    approve: 'border-lime-500 bg-lime-500 text-white hover:bg-lime-600',
-    approve_without_guardian: 'border-green-500 bg-green-500 text-white hover:bg-green-600',
-    reject: 'border-sky-500 bg-sky-500 text-white hover:bg-sky-600',
-    extend: 'border-amber-400 bg-amber-400 text-slate-900 hover:bg-amber-500',
-    delete: 'border-rose-600 bg-rose-600 text-white hover:bg-rose-700',
-    edit: 'border-slate-600 bg-slate-600 text-white hover:bg-slate-700',
+    approve: 'btn-soft-success',
+    approve_without_guardian: 'btn-soft-success',
+    reject: 'btn-soft-info',
+    extend: 'btn-soft-warning',
+    delete: 'btn-soft-icon-danger',
+    edit: 'btn-soft-icon',
 };
 
 const ActionGlyph = ({ actionKey, className = 'h-3.5 w-3.5' }) => {
@@ -66,11 +66,12 @@ export default function TeacherDelayDetail({
     const isReportedDelay = item.stato_code === 'reported';
     const approveActionLabel = isReportedDelay ? 'Giustifica' : 'Approva';
     const rejectActionLabel = isReportedDelay ? 'Registra' : 'Rifiuta';
+    const guardianSignaturePreviewUrl = item?.guardian_signature?.viewer_url ?? null;
     const actionStylesForItem = useMemo(() => ({
         ...actionStyles,
         reject: isReportedDelay
-            ? 'border-sky-500 bg-sky-500 text-white hover:bg-sky-600'
-            : 'border-red-500 bg-red-500 text-white hover:bg-red-600',
+            ? 'btn-soft-info'
+            : 'btn-soft-danger',
     }), [isReportedDelay]);
 
     useEffect(() => {
@@ -299,6 +300,62 @@ export default function TeacherDelayDetail({
                             )}
                         </div>
 
+                        {item.firma_tutore_richiesta && (
+                            <div className="rounded-xl border border-slate-200 p-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h3 className="text-sm font-semibold text-slate-800">
+                                        Firma tutore
+                                    </h3>
+                                    {guardianSignaturePreviewUrl && (
+                                        <a
+                                            href={guardianSignaturePreviewUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="rounded-lg border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                        >
+                                            Apri
+                                        </a>
+                                    )}
+                                </div>
+                                {!item.guardian_signature && (
+                                    <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                                        Nessuna firma tutore registrata.
+                                    </div>
+                                )}
+                                {item.guardian_signature && (
+                                    <>
+                                        <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
+                                            <p>
+                                                <span className="font-semibold text-slate-700">
+                                                    Firmato da:
+                                                </span>{' '}
+                                                {item.guardian_signature.guardian_name || '-'}
+                                            </p>
+                                            <p>
+                                                <span className="font-semibold text-slate-700">
+                                                    Data firma:
+                                                </span>{' '}
+                                                {item.guardian_signature.signed_at || '-'}
+                                            </p>
+                                            <p className="sm:col-span-2">
+                                                <span className="font-semibold text-slate-700">
+                                                    Origine firma:
+                                                </span>{' '}
+                                                {item.guardian_signature.source_label || 'Firma richiesta ritardo'}
+                                            </p>
+                                        </div>
+                                        <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                                            <img
+                                                src={guardianSignaturePreviewUrl}
+                                                alt={`Firma tutore ${item.id}`}
+                                                className="max-h-64 w-full object-contain p-3"
+                                            />
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         <div id="azioni" className="rounded-xl border border-slate-200 p-3">
                             <h3 className="text-sm font-semibold text-slate-800">
                                 Azioni ritardo
@@ -309,9 +366,12 @@ export default function TeacherDelayDetail({
                                 </p>
                             )}
                             {hasAvailableActions && (
-                                <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                                <div className="mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
                                     {actions.map((action) => {
                                         const iconOnly = action.key === 'edit' || action.key === 'delete';
+                                        const buttonClass = iconOnly
+                                            ? actionStylesForItem[action.key]
+                                            : `${actionStylesForItem[action.key]} whitespace-nowrap`;
 
                                         return (
                                             <button
@@ -319,11 +379,7 @@ export default function TeacherDelayDetail({
                                                 type="button"
                                                 title={action.label}
                                                 aria-label={action.label}
-                                                className={`shrink-0 rounded-md border text-xs font-semibold transition ${actionStylesForItem[action.key]} ${
-                                                    iconOnly
-                                                        ? 'flex h-8 w-8 items-center justify-center p-0'
-                                                        : 'px-3 py-1.5 whitespace-nowrap'
-                                                }`}
+                                                className={`shrink-0 ${buttonClass}`}
                                                 onClick={() => openAction(action.key)}
                                             >
                                                 {iconOnly ? (
@@ -344,7 +400,7 @@ export default function TeacherDelayDetail({
                                         >
                                             <button
                                                 type="submit"
-                                                className="rounded-md border border-indigo-500 bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white whitespace-nowrap transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-70"
+                                                className="btn-soft-info whitespace-nowrap"
                                                 disabled={resendGuardianEmailForm.processing}
                                             >
                                                 Reinvia email conferma tutore
@@ -470,7 +526,7 @@ export default function TeacherDelayDetail({
                             {activeAction === 'reject' && (
                                 <form onSubmit={submitReject} className="mt-4 space-y-3">
                                     <label className="block text-xs font-semibold text-slate-700">
-                                        {isReportedDelay ? 'Commento (facoltativo)' : 'Commento obbligatorio'}
+                                        Commento obbligatorio
                                     </label>
                                     <textarea
                                         rows={4}

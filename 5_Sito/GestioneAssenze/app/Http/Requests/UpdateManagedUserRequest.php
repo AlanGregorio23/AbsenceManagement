@@ -34,7 +34,7 @@ class UpdateManagedUserRequest extends FormRequest
             'email' => [
                 'required',
                 'string',
-                'email',
+                'email:filter',
                 'max:255',
                 Rule::unique(User::class)->ignore($managedUser?->id),
             ],

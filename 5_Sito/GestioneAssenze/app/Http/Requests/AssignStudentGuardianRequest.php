@@ -17,7 +17,7 @@ class AssignStudentGuardianRequest extends FormRequest
     {
         return [
             'guardian_name' => ['required', 'string', 'max:120'],
-            'guardian_email' => ['required', 'string', 'email', 'max:255'],
+            'guardian_email' => ['required', 'string', 'email:filter', 'max:255'],
             'relationship' => ['nullable', 'string', 'max:100'],
         ];
     }

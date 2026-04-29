@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Mail\AdultStudentGuardianInfoMail;
-use App\Mail\GuardianDelaySignatureMail;
+use App\Jobs\Mail\AdultStudentGuardianInfoMail;
+use App\Jobs\Mail\GuardianDelaySignatureMail;
 use App\Models\Delay;
 use App\Models\DelayConfirmationToken;
 use App\Models\DelayEmailNotification;

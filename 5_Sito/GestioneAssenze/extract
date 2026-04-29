@@ -1,70 +1,144 @@
-6:use App\Http\Requests\ImportSchoolHolidaysPdfRequest;
-18:use App\Services\SchoolHolidayPdfExtractor;
-32:        $this->middleware('admin');
-42:            'retentionAdvice' => $this->buildRetentionAdvice($settings),
-48:        $validated = $request->validated();
-49:        $validated['absence']['vice_director_email'] = $this->normalizeOptionalEmail(
-71:        $this->validateDelayRulesRanges($validated['delay_rules']);
-77:                $absenceSetting->update($validated['absence']);
-99:                    AbsenceReason::whereKey($reason['id'])->update($payload);
-106:                $reasonIds[] = $created->id;
-110:                AbsenceReason::whereNotIn('id', $reasonIds)->delete();
-112:                AbsenceReason::query()->delete();
-118:                $delaySetting->update($validated['delay']);
-128:                    'actions' => $this->sanitizeActions($rule['actions']),
-135:                    DelayRule::whereKey($rule['id'])->update($payload);
-142:                $ruleIds[] = $created->id;
-146:                DelayRule::whereNotIn('id', $ruleIds)->delete();
-148:                DelayRule::query()->delete();
-162:                $logSettings->update($logPayload);
-167:            $loginSettings = LoginSecuritySetting::query()->first();
-190:                $loginSettings->update($loginPayload);
-192:                LoginSecuritySetting::query()->create($loginPayload);
-198:            $request->user(),
-216:        return redirect()->route('admin.settings');
-219:    public function importHolidaysFromPdf(ImportSchoolHolidaysPdfRequest $request, SchoolHolidayPdfExtractor $extractor)
-221:        $validated = $request->validated();
-225:        $storedPath = $disk->putFile('private/configurazione/calendari', $uploadedFile);
-226:        $absolutePath = $disk->path($storedPath);
-229:            $parsed = $extractor->extract($absolutePath);
-233:            return back()->withErrors([
-234:                'calendar_pdf' => 'Import calendario non riuscito: '.$this->humanizeHolidayImportError($exception),
-238:        $actor = $request->user();
-244:            $normalizedDate = Carbon::parse((string) $date)->toDateString();
-253:                'created_by' => $actor?->id,
-254:                'updated_by' => $actor?->id,
-262:                ->whereIn('school_year', array_keys($schoolYears))
-263:                ->where('source', SchoolHoliday::SOURCE_PDF_IMPORT)
-264:                ->delete();
-266:            SchoolHoliday::query()->upsert(
-295:        return redirect()->route('admin.settings')->with(
-303:        $validated = $request->validated();
-305:        $date = Carbon::parse((string) $validated['holiday_date'])->toDateString();
-306:        $label = $this->normalizeHolidayLabel($validated['label'] ?? null);
-307:        $actor = $request->user();
-309:        $holiday = SchoolHoliday::query()->create([
-315:            'created_by' => $actor?->id,
-316:            'updated_by' => $actor?->id,
-323:            $holiday->id,
-327:                'school_year' => $holiday->school_year,
-333:        return redirect()->route('admin.settings')->with('success', 'Data vacanza aggiunta.');
-338:        $validated = $request->validated();
-340:        $date = Carbon::parse((string) $validated['holiday_date'])->toDateString();
-341:        $label = $this->normalizeHolidayLabel($validated['label'] ?? null);
-342:        $actor = $request->user();
-344:        $holiday->update([
-349:            'updated_by' => $actor?->id,
-356:            $holiday->id,
-360:                'school_year' => $holiday->school_year,
-366:        return redirect()->route('admin.settings')->with('success', 'Data vacanza aggiornata.');
-371:        $actor = $request->user();
-373:            'holiday_date' => $holiday->holiday_date?->toDateString(),
-374:            'label' => $holiday->label,
-375:            'school_year' => $holiday->school_year,
-378:        $holiday->delete();
-384:            $holiday->id,
-390:        return redirect()->route('admin.settings')->with('success', 'Data vacanza eliminata.');
-395:        $rawMessage = trim($exception->getMessage());
-458:        $usersCount = (int) User::query()->count();
-459:        $currentLogsCount = (int) OperationLog::query()->count();
-463:        $estimatedDailyError = max(1, $estimatedDailyTotal - $estimatedDailyInfo);
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\Absence;
+use App\Models\Delay;
+use App\Models\Guardian;
+use App\Models\GuardianAbsenceConfirmation;
+use App\Models\GuardianLeaveConfirmation;
+use App\Models\Leave;
+use App\Models\MonthlyReport;
+use App\Models\SchoolClass;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+
+class DemoScenarioSeeder extends Seeder
+{
+    private const DEMO_PASSWORD = 'Trevano26!';
+
+    public function run(): void
+    {
+        $today = Carbon::today();
+        $reportMonth = Carbon::create(2026, 4, 1)->startOfMonth();
+        $schoolYearStart = Carbon::create(2025, 9, 1)->startOfDay();
+
+        $student = $this->upsertUser([
+            'name' => 'Alan',
+            'surname' => 'Gregorio',
+            'email' => 'alan.gregorio@example.com',
+            'role' => 'student',
+            'birth_date' => '2010-03-11',
+        ]);
+
+        $teacher = $this->upsertUser([
+            'name' => 'Paolo',
+            'surname' => 'Rossi',
+            'email' => 'paolo.rossi@example.com',
+            'role' => 'teacher',
+            'birth_date' => '1984-02-17',
+        ]);
+
+        $laboratoryManager = $this->upsertUser([
+            'name' => 'Luca',
+            'surname' => 'Galli',
+            'email' => 'luca.galli@example.com',
+            'role' => 'laboratory_manager',
+            'birth_date' => '1982-07-01',
+        ]);
+
+        $guardian = Guardian::query()->updateOrCreate(
+            ['email' => 'alan.gregorio@icloud.com'],
+            ['name' => 'Mario Gregorio']
+        );
+
+        $student->allGuardians()->sync([
+            $guardian->id => [
+                'relationship' => 'Padre',
+                'is_primary' => true,
+                'is_active' => true,
+                'deactivated_at' => null,
+            ],
+        ]);
+
+        $class = SchoolClass::query()->updateOrCreate(
+            [
+                'name' => 'Informatica',
+                'year' => '2',
+                'section' => 'I',
+            ],
+            ['active' => true]
+        );
+
+        $this->assignDemoClass($class, $student, $teacher, $schoolYearStart);
+        $this->resetStudentDemoRecords($student);
+
+        $this->seedClosedAbsenceForReport($student, $teacher, $guardian, $reportMonth);
+        $this->seedOpenAbsenceFlow($student, $guardian, $reportMonth);
+        $this->seedRegisteredDelayForReport($student, $teacher, $reportMonth);
+        $this->seedRegisteredLeaveDraft($student, $laboratoryManager, $guardian, $today);
+
+        if ($teacher->id <= 0 || $laboratoryManager->id <= 0) {
+            $this->command?->warn('Seed demo incompleto: controllare la creazione dei ruoli base.');
+        }
+    }
+
+    private function assignDemoClass(
+        SchoolClass $class,
+        User $student,
+        User $teacher,
+        Carbon $schoolYearStart
+    ): void {
+        DB::table('class_user')
+            ->where('user_id', $student->id)
+            ->delete();
+
+        DB::table('class_user')->insert([
+            'class_id' => $class->id,
+            'user_id' => $student->id,
+            'start_date' => $schoolYearStart->toDateString(),
+            'end_date' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('class_teacher')->updateOrInsert(
+            [
+                'class_id' => $class->id,
+                'teacher_id' => $teacher->id,
+                'start_date' => $schoolYearStart->toDateString(),
+            ],
+            [
+                'end_date' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+    }
+
+    private function resetStudentDemoRecords(User $student): void
+    {
+        MonthlyReport::query()
+            ->where('student_id', $student->id)
+            ->delete();
+
+        Delay::query()
+            ->where('student_id', $student->id)
+            ->delete();
+
+        Absence::query()
+            ->where('student_id', $student->id)
+            ->delete();
+
+        Leave::query()
+            ->where('student_id', $student->id)
+            ->delete();
+    }
+
+    private function seedClosedAbsenceForReport(
+        User $student,
+        User $teacher,
+        Guardian

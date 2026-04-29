@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Absence;
-use App\Models\AbsenceSetting;
 use App\Models\Delay;
 use App\Models\Leave;
 use App\Models\MedicalCertificate;
 use App\Services\LeaveAbsenceDraftService;
+use App\Support\SystemSettingsResolver;
 use Carbon\Carbon;
 use Illuminate\Routing\Controller as BaseController;
 use Inertia\Inertia;
@@ -27,7 +27,8 @@ class DashboardStudentController extends BaseController
         $absence = new Absence;
         $delay = new Delay;
         $leave = new Leave;
-        $absenceSetting = AbsenceSetting::query()->firstOrFail();
+        $absenceSetting = SystemSettingsResolver::absenceSetting();
+        $delaySetting = SystemSettingsResolver::delaySetting();
 
         // Richieste aperte da mostrare in dashboard (le chiuse vanno nello storico)
         $assenze = collect($absence->getAbsence($user))
@@ -49,9 +50,18 @@ class DashboardStudentController extends BaseController
                 ) || $isDraftFromLeave || $requiresCertificateUpload;
             });
         $ritardi = collect($delay->getDelay($user))
-            ->filter(function (array $item) {
-                return Delay::normalizeStatus((string) ($item['stato_code'] ?? ''))
-                    === Delay::STATUS_REPORTED;
+            ->filter(function (array $item) use ($delaySetting) {
+                $statusCode = Delay::normalizeStatus((string) ($item['stato_code'] ?? ''));
+                $daysToDeadline = $item['giorni_alla_scadenza'] ?? null;
+
+                if ($statusCode === Delay::STATUS_REPORTED) {
+                    return true;
+                }
+
+                return Delay::deadlineModeActive($delaySetting)
+                    && $statusCode === Delay::STATUS_REGISTERED
+                    && is_numeric($daysToDeadline)
+                    && (int) $daysToDeadline >= 0;
             });
         $congedi = collect($leave->getLeave($user))
             ->filter(function (array $item) {
@@ -125,10 +135,7 @@ class DashboardStudentController extends BaseController
             ->where('student_id', $user->id)
             ->whereIn('status', Leave::openStatuses())
             ->count();
-        $azioniRichiesteRitardi = Delay::query()
-            ->where('student_id', $user->id)
-            ->where('status', Delay::STATUS_REPORTED)
-            ->count();
+        $azioniRichiesteRitardi = $ritardi->count();
         $azioniRichieste = $azioniRichiesteAssenze + $azioniRichiesteCongedi + $azioniRichiesteRitardi;
         $ritardiTotali = Delay::query()
             ->where('student_id', $user->id)

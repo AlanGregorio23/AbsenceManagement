@@ -130,6 +130,12 @@ class LeaveWorkflowController extends BaseController
         $validated = $request->validated();
 
         $comment = $this->normalizeComment($validated['comment'] ?? null);
+        if ($comment === '') {
+            return back()->withErrors([
+                'comment' => 'Inserisci un commento obbligatorio per approvare senza firma.',
+            ]);
+        }
+
         if ($commentErrorResponse = $this->requireCommentWhenDocumentationMissing($leave, $comment)) {
             return $commentErrorResponse;
         }
@@ -491,10 +497,8 @@ class LeaveWorkflowController extends BaseController
             $request
         );
 
-        $redirectRoute = $actor->hasRole('laboratory_manager') ? 'lab.leaves' : 'dashboard';
-
         return redirect()
-            ->route($redirectRoute)
+            ->route('dashboard')
             ->with('success', 'Congedo '.$leaveCode.' eliminato definitivamente.');
     }
 

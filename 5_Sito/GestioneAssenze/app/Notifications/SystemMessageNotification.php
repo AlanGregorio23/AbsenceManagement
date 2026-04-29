@@ -50,6 +50,9 @@ class SystemMessageNotification extends Notification
             'icon' => (string) ($this->content['icon'] ?? 'system'),
             'action_label' => (string) ($this->content['action_label'] ?? 'Apri'),
             'action_type' => (string) ($this->content['action_type'] ?? 'open'),
+            'reference_code' => $this->content['reference_code'] ?? null,
+            'deadline_date' => $this->content['deadline_date'] ?? null,
+            'warning_percent' => $this->content['warning_percent'] ?? null,
         ];
     }
 

@@ -241,7 +241,7 @@ class User extends Authenticatable
                     'email' => $user->email,
                     'ruolo_code' => $role,
                     'ruolo' => $label,
-                    'classe' => $className?->name ?? '-',
+                    'classe' => $className?->class_code ?: '-',
                     'stato' => $stato,
                     'tutore_legale' => $guardianContact ? [
                         'id' => $guardianContact['id'],

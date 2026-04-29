@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AdminSettings;
+use App\Models\DelaySetting;
 use App\Support\AnnualHoursLimitLabels;
 use App\Support\SimplePdfBuilder;
 use Illuminate\Routing\Controller as BaseController;
@@ -191,6 +192,14 @@ class RulesController extends BaseController
                     [
                         'label' => 'Firma tutore obbligatoria',
                         'value' => ! empty($delay['guardian_signature_required']) ? 'Si' : 'No',
+                    ],
+                    [
+                        'label' => 'Fine primo semestre',
+                        'value' => sprintf(
+                            '%02d/%02d',
+                            (int) ($delay['first_semester_end_day'] ?? DelaySetting::DEFAULT_FIRST_SEMESTER_END_DAY),
+                            (int) ($delay['first_semester_end_month'] ?? DelaySetting::DEFAULT_FIRST_SEMESTER_END_MONTH)
+                        ),
                     ],
                     [
                         'label' => 'Giorni lavorativi giustificazione',

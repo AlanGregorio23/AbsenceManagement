@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Services\StudentDeadlineReminderService;
 use App\Support\AnnualHoursLimitLabels;
+use App\Support\DeadlineWarningProgress;
 use App\Support\WorkingCalendar;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -132,6 +134,16 @@ class Absence extends Model
         return max((int) $absenceSetting->absence_countdown_days, 0);
     }
 
+    public static function preExpiryWarningPercent(?AbsenceSetting $absenceSetting = null): int
+    {
+        $absenceSetting ??= AbsenceSetting::query()->firstOrFail();
+
+        return DeadlineWarningProgress::normalizePercent(
+            (int) ($absenceSetting->pre_expiry_warning_percent
+                ?? DeadlineWarningProgress::DEFAULT_WARNING_PERCENT)
+        );
+    }
+
     public static function calculateMedicalCertificateDeadline(
         Carbon $referenceDate,
         ?AbsenceSetting $absenceSetting = null
@@ -156,11 +168,20 @@ class Absence extends Model
             ? Carbon::parse($this->medical_certificate_deadline)->startOfDay()
             : null;
 
-        if ($storedDeadline && $storedDeadline->gt($configuredDeadline)) {
+        if (
+            $storedDeadline
+            && $this->hasManualDeadlineExtension()
+            && $storedDeadline->gt($configuredDeadline)
+        ) {
             return $storedDeadline;
         }
 
         return $configuredDeadline;
+    }
+
+    public function hasManualDeadlineExtension(): bool
+    {
+        return ! is_null($this->deadline_extended_at);
     }
 
     public function syncMedicalCertificateDeadline(?AbsenceSetting $absenceSetting = null): Carbon
@@ -176,6 +197,32 @@ class Absence extends Model
         }
 
         return $effectiveDeadline;
+    }
+
+    public function totalDeadlineBusinessDays(?AbsenceSetting $absenceSetting = null): int
+    {
+        $baseDate = $this->end_date
+            ? Carbon::parse($this->end_date)->startOfDay()
+            : Carbon::parse($this->start_date)->startOfDay();
+        $deadline = $this->resolveMedicalCertificateDeadline($absenceSetting);
+
+        return max(self::businessDaysUntil($baseDate, $deadline), 0);
+    }
+
+    public function shouldSendPreExpiryWarning(
+        ?AbsenceSetting $absenceSetting = null,
+        ?Carbon $today = null
+    ): bool {
+        $today ??= Carbon::today();
+        $deadline = $this->resolveMedicalCertificateDeadline($absenceSetting);
+        $remainingBusinessDays = self::businessDaysUntil($today, $deadline);
+        $totalBusinessDays = $this->totalDeadlineBusinessDays($absenceSetting);
+
+        return DeadlineWarningProgress::shouldNotify(
+            $totalBusinessDays,
+            $remainingBusinessDays,
+            self::preExpiryWarningPercent($absenceSetting)
+        );
     }
 
     public static function countConsecutiveFullAbsenceDays(
@@ -433,8 +480,12 @@ class Absence extends Model
                 continue;
             }
 
-            if ($daysToDeadline === 1) {
-                static::queuePreArbitraryWarningNotifications($absence, $effectiveDeadline);
+            if ($absence->shouldSendPreExpiryWarning($absenceSetting, $today)) {
+                app(StudentDeadlineReminderService::class)->sendAbsenceReminder(
+                    $absence,
+                    $effectiveDeadline,
+                    static::preExpiryWarningPercent($absenceSetting)
+                );
             }
 
             if (! $effectiveDeadline->lt($today)) {
@@ -502,46 +553,6 @@ class Absence extends Model
         static::queueAutoArbitraryNotifications($this);
 
         return true;
-    }
-
-    private static function queuePreArbitraryWarningNotifications(
-        self $absence,
-        Carbon $deadline
-    ): void {
-        $deadlineLabel = $deadline->format('d/m/Y');
-        $typeSuffix = $deadline->toDateString();
-        $studentName = trim((string) ($absence->student?->name ?? '').' '.(string) ($absence->student?->surname ?? ''));
-        $studentName = $studentName !== '' ? $studentName : 'lo studente';
-
-        $studentEmail = $absence->student?->email;
-        if ($studentEmail) {
-            static::queueEmailNotification(
-                $absence,
-                'pre_arbitrary_student_'.$typeSuffix,
-                $studentEmail,
-                'Promemoria assenza in scadenza',
-                'La tua assenza '.$absence->id.' scade il '.$deadlineLabel.'. '
-                .'Se non viene completata in tempo sara impostata come arbitraria.'
-            );
-        }
-
-        $guardianEmails = $absence->student?->guardians
-            ?->pluck('email')
-            ->filter(fn ($email) => filled(trim((string) $email)))
-            ->unique()
-            ->values()
-            ?? collect();
-
-        foreach ($guardianEmails as $guardianEmail) {
-            static::queueEmailNotification(
-                $absence,
-                'pre_arbitrary_guardian_'.$typeSuffix,
-                $guardianEmail,
-                'Avviso assenza studente in scadenza',
-                'L assenza '.$absence->id.' di '.$studentName.' scade il '.$deadlineLabel.'. '
-                .'Se non viene completata in tempo sara impostata come arbitraria.'
-            );
-        }
     }
 
     private static function queueAutoArbitraryNotifications(self $absence): void
