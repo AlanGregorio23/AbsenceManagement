@@ -1,86 +1,86 @@
-# Gestione Assenze
+# Absence Management
 
-Applicazione web per la gestione di assenze, ritardi, congedi, certificati medici e report mensili degli allievi.
+Web application for managing student absences, delays, leave requests, medical certificates, and monthly reports.
 
-Il progetto e sviluppato con Laravel 12, Inertia.js, React e Tailwind CSS.
+The project is developed with Laravel 12, Inertia.js, React, and Tailwind CSS.
 
-## Funzionalita principali
+## Main Features
 
-- Autenticazione con ruoli: studente, docente, capo laboratorio e amministratore.
-- Inserimento e gestione di assenze, ritardi e congedi.
-- Validazione delle richieste con controlli su date, ore, sovrapposizioni e allegati.
-- Firma del tutore tramite link dedicato.
-- Gestione certificati medici e scadenze.
-- Workflow dei congedi con approvazione, rifiuto, documentazione e inoltro alla direzione.
-- Report mensili in PDF con upload del report firmato.
-- Notifiche interne ed email configurabili.
-- Log operativi, log errori, export e pulizia automatica dei log.
-- Configurazione di regole assenze, ritardi, sicurezza login e vacanze scolastiche.
+- Authentication with roles: student, teacher, laboratory manager, and administrator.
+- Creation and management of absences, delays, and leave requests.
+- Request validation with checks on dates, hours, overlaps, and attachments.
+- Guardian signature through a dedicated link.
+- Management of medical certificates and deadlines.
+- Leave request workflow with approval, rejection, documentation requests, and forwarding to management.
+- Monthly PDF reports with upload of the signed report.
+- Configurable internal notifications and emails.
+- Operational logs, error logs, export, and automatic log cleanup.
+- Configuration of absence rules, delay rules, login security, and school holidays.
 
-## Struttura del repository
+## Repository Structure
 
 ```text
-1_QdC/                    Quaderno dei compiti
-2_Abstract/                Abstract del progetto
-3_Documentazione/          Documentazione tecnica e utente
-4_Diari/                   Diari di lavoro
-5_Sito/GestioneAssenze/    Applicazione Laravel
-6_Database/                Materiale relativo al database
-7_Allegati/                Allegati di progetto
-8_Manuali/                 Manuali utente/installazione
+1_QdC/                    Task notebook
+2_Abstract/                Project abstract
+3_Documentation/           Technical and user documentation
+4_Diaries/                 Work diaries
+5_Sito/GestioneAssenze/    Laravel application
+6_Database/                Database-related material
+7_Attachments/             Project attachments
+8_Manuals/                 User/installation manuals
 ```
 
-I comandi tecnici vanno eseguiti da:
+Technical commands must be executed from:
 
 ```powershell
 cd 5_Sito/GestioneAssenze
 ```
 
-## Requisiti
+## Requirements
 
-- PHP 8.2 o superiore
+- PHP 8.2 or higher
 - Composer
-- Node.js e npm
-- MySQL/MariaDB per l'ambiente locale
-- Estensioni PHP richieste da Laravel, incluse `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `tokenizer`, `xml`, `ctype`, `json`
+- Node.js and npm
+- MySQL/MariaDB for the local environment
+- PHP extensions required by Laravel, including `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `tokenizer`, `xml`, `ctype`, `json`
 
-Per i test automatici viene usato SQLite in memoria, come configurato in `phpunit.xml`.
+Automatic tests use in-memory SQLite, as configured in `phpunit.xml`.
 
-## Installazione
+## Installation
 
-1. Entrare nella cartella dell'applicazione:
+1. Enter the application folder:
 
 ```powershell
 cd 5_Sito/GestioneAssenze
 ```
 
-2. Installare le dipendenze PHP:
+2. Install PHP dependencies:
 
 ```powershell
 composer install
 ```
 
-3. Installare le dipendenze frontend:
+3. Install frontend dependencies:
 
 ```powershell
 npm install
 ```
 
-4. Creare il file `.env`:
+4. Create the `.env` file:
 
 ```powershell
 copy .env.example .env
 ```
 
-5. Generare la chiave applicativa:
+5. Generate the application key:
 
 ```powershell
 php artisan key:generate
 ```
 
-6. Configurare il database nel file `.env`.
+6. Configure the database in the `.env` file.
 
-Esempio locale:
+Local example:
 
 ```env
 DB_CONNECTION=mysql
@@ -91,23 +91,23 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-7. Creare il database `gestioneassenze` in MySQL/MariaDB.
+7. Create the `gestioneassenze` database in MySQL/MariaDB.
 
-8. Eseguire migration e seeder:
+8. Run migrations and seeders:
 
 ```powershell
 php artisan migrate --seed
 ```
 
-## Avvio in sviluppo
+## Development Startup
 
-Avvio completo con server Laravel, queue worker e Vite:
+Full startup with Laravel server, queue worker, and Vite:
 
 ```powershell
 composer run dev
 ```
 
-In alternativa, avvio separato:
+Alternatively, start each service separately:
 
 ```powershell
 php artisan serve
@@ -115,19 +115,19 @@ npm run dev
 php artisan queue:listen --tries=1 --timeout=0
 ```
 
-L'applicazione sara disponibile di default su:
+The application will be available by default at:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-## Build produzione
+## Production Build
 
 ```powershell
 npm run build
 ```
 
-Per preparare cache e autoload in ambiente di consegna/produzione:
+To prepare cache and autoload for delivery/production:
 
 ```powershell
 composer install --no-dev --optimize-autoloader
@@ -136,57 +136,57 @@ php artisan route:cache
 php artisan view:cache
 ```
 
-## Deploy con Docker
+## Docker Deployment
 
-La configurazione Docker si trova qui:
+The Docker configuration is located here:
 
 ```powershell
 cd 5_Sito/GestioneAssenze/docker
 ```
 
-Prima preparare il file ambiente Docker:
+First, prepare the Docker environment file:
 
 ```powershell
 copy .env.docker.example .env.docker
 ```
 
-Se `APP_KEY` resta vuoto, Docker la genera automaticamente al primo avvio e la salva nel volume condiviso dell'applicazione.
+If `APP_KEY` is left empty, Docker automatically generates it on the first startup and saves it in the shared application volume.
 
-Avviare il deploy locale:
+Start the local deployment:
 
 ```powershell
 docker compose up -d --build
 ```
 
-L'applicazione sara disponibile su:
+The application will be available at:
 
 ```text
 http://localhost:8080
 ```
 
-Il compose avvia:
+The compose file starts:
 
-- `init`: bootstrap Laravel che esegue le migration prima degli altri servizi;
-- `app`: Laravel con Nginx e PHP-FPM;
-- `queue`: worker per `QUEUE_CONNECTION=database`;
-- `scheduler`: scheduler Laravel;
+- `init`: Laravel bootstrap container that runs migrations before the other services;
+- `app`: Laravel with Nginx and PHP-FPM;
+- `queue`: worker for `QUEUE_CONNECTION=database`;
+- `scheduler`: Laravel scheduler;
 - `db`: MariaDB.
 
-Alla partenza il container `init` esegue automaticamente:
+On startup, the `init` container automatically runs:
 
 ```powershell
 php artisan migrate --force
 ```
 
-Solo dopo il completamento delle migration vengono avviati `app`, `queue` e `scheduler`, cosi i servizi che usano `CACHE_STORE=database`, `SESSION_DRIVER=database` e `QUEUE_CONNECTION=database` non partono con le tabelle ancora mancanti. Se `APP_KEY` non e impostata, viene generata automaticamente durante il bootstrap Docker e riutilizzata da tutti i servizi Laravel.
+Only after the migrations are completed, `app`, `queue`, and `scheduler` are started. This prevents services using `CACHE_STORE=database`, `SESSION_DRIVER=database`, and `QUEUE_CONNECTION=database` from starting while the required tables are still missing. If `APP_KEY` is not set, it is generated automatically during the Docker bootstrap and reused by all Laravel services.
 
-Per caricare anche i dati demo:
+To also load demo data:
 
 ```powershell
 docker compose exec app php artisan db:seed --force
 ```
 
-Comandi utili:
+Useful commands:
 
 ```powershell
 docker compose logs -f app
@@ -194,81 +194,81 @@ docker compose exec app php artisan migrate:status
 docker compose down
 ```
 
-In produzione cambiare almeno `APP_URL`, `APP_KEY`, `DB_PASSWORD`, `MARIADB_PASSWORD`, `MARIADB_ROOT_PASSWORD` e la configurazione email in `.env.docker`.
+In production, at least change `APP_URL`, `APP_KEY`, `DB_PASSWORD`, `MARIADB_PASSWORD`, `MARIADB_ROOT_PASSWORD`, and the email configuration in `.env.docker`.
 
-## Credenziali demo
+## Demo Credentials
 
-Dopo `php artisan migrate --seed` sono disponibili questi utenti:
+After running `php artisan migrate --seed`, the following users are available:
 
-| Ruolo | Email | Password |
+| Role | Email | Password |
 |---|---|---|
-| Amministratore | `admin@cpt.local` | `Trevano26!` |
-| Studente | `alan.gregorio@example.com` | `Trevano26!` |
-| Docente | `paolo.rossi@example.com` | `Trevano26!` |
-| Capo laboratorio | `luca.galli@example.com` | `Trevano26!` |
+| Administrator | `admin@cpt.local` | `Trevano26!` |
+| Student | `alan.gregorio@example.com` | `Trevano26!` |
+| Teacher | `paolo.rossi@example.com` | `Trevano26!` |
+| Laboratory manager | `luca.galli@example.com` | `Trevano26!` |
 
-Le credenziali sono solo per sviluppo e dimostrazione. Non usarle in produzione.
+These credentials are only for development and demonstration. Do not use them in production.
 
-## Test e controllo qualita
+## Tests and Quality Checks
 
-Eseguire tutti i test:
+Run all tests:
 
 ```powershell
 php artisan test
 ```
 
-Controllare lo stile PHP senza modificare i file:
+Check PHP style without modifying files:
 
 ```powershell
 vendor\bin\pint --test
 ```
 
-Correggere automaticamente lo stile PHP:
+Automatically fix PHP style:
 
 ```powershell
 vendor\bin\pint
 ```
 
-Compilare il frontend:
+Build the frontend:
 
 ```powershell
 npm run build
 ```
 
-## Comandi schedulati
+## Scheduled Commands
 
-Il progetto definisce diversi task automatici in `routes/console.php`, tra cui:
+The project defines several automatic tasks in `routes/console.php`, including:
 
-- marcatura automatica di assenze arbitrarie;
-- marcatura automatica di ritardi arbitrari;
-- reinvio dei link firma scaduti;
-- registrazione delle assenze derivate da congedi;
-- generazione dei report mensili;
-- pulizia dei log secondo retention configurata;
-- aggiornamento automatico del tutore per studenti maggiorenni.
+- automatic marking of arbitrary absences;
+- automatic marking of arbitrary delays;
+- resending expired signature links;
+- registration of absences derived from leave requests;
+- generation of monthly reports;
+- log cleanup according to the configured retention period;
+- automatic guardian update for adult students.
 
-In produzione va attivato lo scheduler Laravel:
+In production, the Laravel scheduler must be enabled:
 
 ```powershell
 php artisan schedule:run
 ```
 
-Normalmente questo comando viene eseguito ogni minuto dal sistema operativo o dal servizio di hosting.
+Normally, this command is executed every minute by the operating system or hosting service.
 
-## Note operative
+## Operational Notes
 
-- Gli allegati caricati dagli utenti vengono salvati nel disco `local`.
-- Le email in ambiente locale sono configurate su `MAIL_MAILER=log`.
-- Le code usano `QUEUE_CONNECTION=database`, quindi serve un worker attivo per processare i job.
-- I test usano database SQLite in memoria e non modificano il database locale MySQL.
-- Prima della consegna conviene sempre eseguire `php artisan test`, `vendor\bin\pint --test` e `npm run build`.
+- User-uploaded attachments are stored on the `local` disk.
+- Emails in the local environment are configured with `MAIL_MAILER=log`.
+- Queues use `QUEUE_CONNECTION=database`, so an active worker is required to process jobs.
+- Tests use an in-memory SQLite database and do not modify the local MySQL database.
+- Before delivery, it is recommended to run `php artisan test`, `vendor\bin\pint --test`, and `npm run build`.
 
-## Documentazione di progetto
+## Project Documentation
 
-La documentazione formale, i diari e i manuali sono nelle cartelle:
+Formal documentation, diaries, and manuals are located in:
 
-- `3_Documentazione/`
-- `4_Diari/`
-- `8_Manuali/`
+- `3_Documentation/`
+- `4_Diaries/`
+- `8_Manuals/`
 
-Il codice applicativo principale si trova in `5_Sito/GestioneAssenze/`.
+The main application code is located in `5_Sito/GestioneAssenze/`.
