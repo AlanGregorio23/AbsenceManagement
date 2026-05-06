@@ -83,6 +83,8 @@ class AbsenceRulesAndGuardiansTest extends AbsenceFeatureTestCase
 
         $certificateRequirement = $absence->resolveCertificateRequirementStatus($absenceSetting);
         $this->assertSame('required_overdue', $certificateRequirement['code']);
+        $this->assertSame('Certificato scaduto', $certificateRequirement['label']);
+        $this->assertSame('Scaduto', $certificateRequirement['short_label']);
     }
 
     public function test_justified_absence_with_validated_required_certificate_is_not_marked_arbitrary_after_deadline(): void

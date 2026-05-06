@@ -17,7 +17,19 @@ export default function StudentMonthlyReports({ items = [] }) {
     const fileInputRef = useRef(null);
 
     const uploadCandidates = useMemo(
-        () => items.filter((item) => item.can_upload_signed),
+        () =>
+            items
+                .filter((item) => item.can_upload_signed)
+                .sort((left, right) => {
+                    const priority = (item) =>
+                        item.status_code === 'rejected'
+                            ? 0
+                            : String(item.rejection_comment ?? '').trim() !== ''
+                                ? 1
+                                : 2;
+
+                    return priority(left) - priority(right);
+                }),
         [items]
     );
 
@@ -114,7 +126,7 @@ export default function StudentMonthlyReports({ items = [] }) {
         <AuthenticatedLayout header="Report mensili">
             <Head title="Report mensili studente" />
 
-            <div className="grid gap-6 lg:grid-cols-3">
+            <div className="grid gap-6 lg:grid-cols-3 lg:items-start">
                 <aside className="order-1 space-y-4 lg:order-2">
                     <section className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
                         <h3 className="text-base font-semibold text-slate-800">
@@ -208,7 +220,7 @@ export default function StudentMonthlyReports({ items = [] }) {
                     </section>
                 </aside>
 
-                <section className="order-2 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:order-1 lg:col-span-2">
+                <section className="order-2 h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:order-1 lg:col-span-2">
                     <div>
                         <h2 className="text-lg font-semibold text-slate-900">
                             Archivio report mensili
@@ -238,77 +250,97 @@ export default function StudentMonthlyReports({ items = [] }) {
                         </div>
                     </div>
 
-                    <div className="mt-4 overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="text-xs uppercase tracking-wide text-slate-400">
-                                <tr>
-                                    <th className="py-3 text-center align-middle">Report</th>
-                                    <th className="py-3 text-center align-middle">Mese</th>
-                                    <th className="py-3 text-center align-middle">Stato</th>
-                                    <th className="py-3 text-center align-middle">Data generato</th>
-                                    <th className="py-3 text-center align-middle">Azioni</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filtered.length === 0 && (
-                                    <tr>
-                                        <td
-                                            className="py-6 text-center text-sm text-slate-400"
-                                            colSpan={5}
-                                        >
-                                            Nessun report trovato.
-                                        </td>
-                                    </tr>
-                                )}
-                                {filtered.map((item) => (
-                                    <tr key={item.report_id} className="text-slate-600">
-                                        <td className="py-3 text-center align-middle font-medium text-slate-900">
-                                            {item.code}
-                                        </td>
-                                        <td className="py-3 text-center align-middle">{item.month}</td>
-                                        <td className="py-3 text-center align-middle">
+                    <div className="mt-5">
+                        <div className="hidden grid-cols-[96px_84px_minmax(180px,1fr)_140px_170px] gap-3 px-4 pb-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-400 lg:grid">
+                            <span>Report</span>
+                            <span>Mese</span>
+                            <span>Stato</span>
+                            <span>Generato</span>
+                            <span>Azioni</span>
+                        </div>
+
+                        <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100">
+                            {filtered.length === 0 && (
+                                <div className="px-4 py-8 text-center text-sm text-slate-400">
+                                    Nessun report trovato.
+                                </div>
+                            )}
+
+                            {filtered.map((item) => (
+                                <article key={item.report_id} className="px-4 py-4">
+                                    <div className="grid gap-3 lg:grid-cols-[96px_84px_minmax(180px,1fr)_140px_170px] lg:items-center">
+                                        <div className="min-w-0 text-center">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 lg:hidden">
+                                                Report
+                                            </p>
+                                            <p className="text-sm font-semibold text-slate-900">
+                                                {item.code}
+                                            </p>
+                                        </div>
+
+                                        <div className="text-center">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 lg:hidden">
+                                                Mese
+                                            </p>
+                                            <p className="text-sm text-slate-700">
+                                                {item.month}
+                                            </p>
+                                        </div>
+
+                                        <div className="min-w-0 text-center">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 lg:hidden">
+                                                Stato
+                                            </p>
                                             <span
-                                                className={`rounded-full px-3 py-1 text-xs font-semibold ${item.badge}`}
+                                                className={`inline-flex max-w-full items-center rounded-full px-3 py-1 text-xs font-semibold ${item.badge}`}
                                             >
-                                                {item.status_label}
+                                                <span className="truncate">
+                                                    {item.status_label}
+                                                </span>
                                             </span>
-                                            {item.rejection_comment && (
-                                                <p className="mx-auto mt-2 max-w-xs whitespace-pre-wrap text-xs text-rose-600">
-                                                    {item.rejection_comment}
-                                                </p>
+                                        </div>
+
+                                        <div className="text-center">
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 lg:hidden">
+                                                Generato
+                                            </p>
+                                            <p className="text-sm text-slate-600 lg:text-xs">
+                                                {item.generated_at ?? '-'}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-wrap justify-center gap-2 lg:flex-nowrap">
+                                            {item.original_download_url && (
+                                                <a
+                                                    href={item.original_download_url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="btn-soft-neutral h-8 min-w-[78px] whitespace-nowrap px-3"
+                                                >
+                                                    Originale
+                                                </a>
                                             )}
-                                        </td>
-                                        <td className="py-3 text-center align-middle text-xs">
-                                            {item.generated_at ?? '-'}
-                                        </td>
-                                        <td className="py-3 text-center align-middle">
-                                            <div className="inline-flex flex-wrap items-center justify-center gap-2 text-xs">
-                                                {item.original_download_url && (
-                                                    <a
-                                                        href={item.original_download_url}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="btn-soft-neutral h-8"
-                                                    >
-                                                        Scarica originale
-                                                    </a>
+                                            {item.signed_download_url && (
+                                                <a
+                                                    href={item.signed_download_url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="btn-soft-info h-8 min-w-[78px] whitespace-nowrap px-3"
+                                                >
+                                                    Firmato
+                                                </a>
+                                            )}
+                                            {!item.original_download_url &&
+                                                !item.signed_download_url && (
+                                                    <span className="text-sm text-slate-400">
+                                                        -
+                                                    </span>
                                                 )}
-                                                {item.signed_download_url && (
-                                                    <a
-                                                        href={item.signed_download_url}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="btn-soft-info h-8"
-                                                    >
-                                                        Scarica firmato
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
                     </div>
                 </section>
             </div>

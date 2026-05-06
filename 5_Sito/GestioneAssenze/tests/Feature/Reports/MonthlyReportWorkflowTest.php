@@ -17,6 +17,7 @@ use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class MonthlyReportWorkflowTest extends TestCase
@@ -473,6 +474,17 @@ class MonthlyReportWorkflowTest extends TestCase
             'Firma illeggibile, ricarica una scansione piu chiara.',
             $report->rejection_comment
         );
+
+        $this->actingAs($student)
+            ->get(route('student.monthly-reports'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Student/MonthlyReports')
+                ->where('items.0.status_code', MonthlyReport::STATUS_REJECTED)
+                ->where(
+                    'items.0.rejection_comment',
+                    'Firma illeggibile, ricarica una scansione piu chiara.'
+                ));
 
         $this->actingAs($teacher)->post(
             route('teacher.monthly-reports.resend-email', $report)

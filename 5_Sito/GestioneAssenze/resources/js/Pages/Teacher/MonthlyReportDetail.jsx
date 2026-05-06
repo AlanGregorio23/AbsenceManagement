@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import Modal from '@/Components/Modal';
 import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -12,11 +13,13 @@ export default function TeacherMonthlyReportDetail({ item, history = [] }) {
     const resendForm = useForm({});
     const approveForm = useForm({});
     const rejectForm = useForm({ comment: '' });
-    const [showRejectForm, setShowRejectForm] = useState(false);
+    const [showRejectModal, setShowRejectModal] = useState(false);
     const previewUrl = item.signed_download_url || item.original_download_url;
     const previewTitle = item.signed_download_url
         ? 'Anteprima documento firmato'
         : 'Anteprima documento originale';
+    const inputClass =
+        'w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-100';
 
     const submitResend = (event) => {
         event.preventDefault();
@@ -38,9 +41,15 @@ export default function TeacherMonthlyReportDetail({ item, history = [] }) {
             preserveScroll: true,
             onSuccess: () => {
                 rejectForm.reset('comment');
-                setShowRejectForm(false);
+                setShowRejectModal(false);
             },
         });
+    };
+
+    const closeRejectModal = () => {
+        if (!rejectForm.processing) {
+            setShowRejectModal(false);
+        }
     };
 
     return (
@@ -159,7 +168,7 @@ export default function TeacherMonthlyReportDetail({ item, history = [] }) {
                                     <button
                                         type="button"
                                         className={`h-8 ${actionStyles.reject}`}
-                                        onClick={() => setShowRejectForm((visible) => !visible)}
+                                        onClick={() => setShowRejectModal(true)}
                                     >
                                         Rifiuta report
                                     </button>
@@ -170,33 +179,6 @@ export default function TeacherMonthlyReportDetail({ item, history = [] }) {
                                     </span>
                                 )}
                             </div>
-                            {item.can_reject && showRejectForm && (
-                                <form onSubmit={submitReject} className="mt-4 space-y-2">
-                                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Motivo rifiuto
-                                    </label>
-                                    <textarea
-                                        className="min-h-[100px] w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
-                                        value={rejectForm.data.comment}
-                                        onChange={(event) =>
-                                            rejectForm.setData('comment', event.target.value)
-                                        }
-                                        placeholder="Scrivi cosa deve correggere o ricaricare lo studente"
-                                    />
-                                    {rejectForm.errors.comment && (
-                                        <p className="text-xs text-rose-500">
-                                            {rejectForm.errors.comment}
-                                        </p>
-                                    )}
-                                    <button
-                                        type="submit"
-                                        className={`h-8 ${actionStyles.reject}`}
-                                        disabled={rejectForm.processing}
-                                    >
-                                        Conferma rifiuto
-                                    </button>
-                                </form>
-                            )}
                             {item.status_code === 'approved' && (
                                 <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                                     Report archiviato: il reinvio email e disabilitato.
@@ -277,6 +259,65 @@ export default function TeacherMonthlyReportDetail({ item, history = [] }) {
                         ))}
                     </div>
                 </section>
+
+                <Modal
+                    show={showRejectModal}
+                    onClose={closeRejectModal}
+                    closeable={!rejectForm.processing}
+                    maxWidth="2xl"
+                >
+                    <div className="max-h-[calc(100vh-7rem)] overflow-y-auto p-4 sm:max-h-[80vh] sm:p-5">
+                        <div className="mx-auto w-full max-w-2xl">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-rose-500">
+                                Rifiuto report
+                            </p>
+                            <h3 className="mt-1 text-lg font-semibold text-slate-900">
+                                {item.code} - {item.student_name}
+                            </h3>
+                            <p className="mt-1 text-sm text-slate-500">
+                                Scrivi il motivo che lo studente deve vedere prima di
+                                ricaricare il report firmato.
+                            </p>
+
+                            <form onSubmit={submitReject} className="mt-4 space-y-3">
+                                <label className="block text-xs font-semibold text-slate-700">
+                                    Motivo obbligatorio
+                                </label>
+                                <textarea
+                                    rows={5}
+                                    className={inputClass}
+                                    value={rejectForm.data.comment}
+                                    onChange={(event) =>
+                                        rejectForm.setData('comment', event.target.value)
+                                    }
+                                    placeholder="Scrivi cosa deve correggere o ricaricare lo studente"
+                                />
+                                {(rejectForm.errors.comment || rejectForm.errors.report) && (
+                                    <p className="text-xs text-rose-600">
+                                        {rejectForm.errors.comment || rejectForm.errors.report}
+                                    </p>
+                                )}
+                                <div className="flex justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700"
+                                        onClick={closeRejectModal}
+                                        disabled={rejectForm.processing}
+                                    >
+                                        Annulla
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="rounded-lg bg-red-500 px-4 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-red-300"
+                                        disabled={rejectForm.processing}
+                                    >
+                                        Conferma rifiuto
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         </AuthenticatedLayout>
     );

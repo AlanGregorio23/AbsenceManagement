@@ -385,8 +385,8 @@ class Absence extends Model
         if ($isOverdue) {
             return [
                 'code' => 'required_overdue',
-                'label' => 'Certificato necessario (scaduto)',
-                'short_label' => 'Necessario (scaduto)',
+                'label' => 'Certificato scaduto',
+                'short_label' => 'Scaduto',
                 'badge' => 'bg-rose-100 text-rose-700',
                 'urgent' => true,
             ];
